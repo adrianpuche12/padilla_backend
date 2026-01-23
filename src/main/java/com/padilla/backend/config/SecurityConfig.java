@@ -19,9 +19,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 // Endpoints publicos (sin autenticacion)
-                .requestMatchers("/health", "/actuator/**", "/test").permitAll()
+                .requestMatchers("/health", "/actuator/**", "/test", "/api/auth/**").permitAll()
                 // Todo lo demas requiere autenticacion
                 .anyRequest().authenticated()
             )
@@ -35,6 +36,6 @@ public class SecurityConfig {
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
-                .requestMatchers("/api/admin/ping");
+                .requestMatchers("/api/admin/ping", "/api/auth/**");
     }
 }
