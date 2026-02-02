@@ -1,4 +1,5 @@
 package com.padilla.backend.service;
+import com.padilla.backend.dto.SellerSummaryDTO;
 
 import com.padilla.backend.entity.Seller;
 import com.padilla.backend.repository.SellerRepository;
@@ -27,4 +28,11 @@ public class SellerService {
     public long count() {
         return sellerRepository.count();
     }
+
+    public List<SellerSummaryDTO> findAllSummary() 
+    {
+    return sellerRepository.findAllByOrderByFullnameAsc().stream()
+            .map(s -> new SellerSummaryDTO(s.getId(), s.getFullname(), s.getLatestAssignee()))
+            .toList();
+}
 }

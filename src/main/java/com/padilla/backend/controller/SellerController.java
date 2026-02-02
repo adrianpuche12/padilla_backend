@@ -1,5 +1,6 @@
 package com.padilla.backend.controller;
 
+import com.padilla.backend.dto.SellerSummaryDTO;
 import com.padilla.backend.entity.Seller;
 import com.padilla.backend.service.LeadService;
 import com.padilla.backend.service.SellerService;
@@ -25,8 +26,8 @@ public class SellerController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    public ResponseEntity<List<Seller>> getAllSellers() {
-        return ResponseEntity.ok(sellerService.findAll());
+    public ResponseEntity<List<SellerSummaryDTO>> getAllSellers() {
+        return ResponseEntity.ok(sellerService.findAllSummary());
     }
 
     @GetMapping("/{id}")
