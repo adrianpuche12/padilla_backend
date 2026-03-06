@@ -10,7 +10,7 @@ env:
 
 jobs:
   deploy-staging:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, padilla-backend]
 
     steps:
       - name: Login DockerHub
@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Promover imagen dev -> staging (sin rebuild)
+      - name: Promover imagen dev -> staging
         run: |
           docker pull ${{ env.IMAGE }}:dev
           docker tag ${{ env.IMAGE }}:dev ${{ env.IMAGE }}:staging
@@ -27,31 +27,26 @@ jobs:
           docker push ${{ env.IMAGE }}:staging
           docker push ${{ env.IMAGE }}:staging-${{ github.sha }}
 
-      - name: Deploy en servidor STAGING
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            docker pull ${{ env.IMAGE }}:staging
+      - name: Deploy servicio STAGING
+        run: |
+          docker pull ${{ env.IMAGE }}:staging
 
-            if docker service ls | grep -q padilla-backend-staging; then
-              docker service update \
-                --image ${{ env.IMAGE }}:staging \
-                --with-registry-auth \
-                padilla-backend-staging
-            else
-              docker service create \
-                --name padilla-backend-staging \
-                --network padilla-network-staging \
-                --publish 9180:8080 \
-                --env SPRING_PROFILES_ACTIVE=staging \
-                --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-                --env KEYCLOAK_URL=${{ secrets.KEYCLOAK_URL }} \
-                --with-registry-auth \
-                ${{ env.IMAGE }}:staging
-            fi
+          if docker service ls | grep -q padilla-backend-staging; then
+            docker service update \
+              --image ${{ env.IMAGE }}:staging \
+              --with-registry-auth \
+              padilla-backend-staging
+          else
+            docker service create \
+              --name padilla-backend-staging \
+              --network padilla-network-staging \
+              --publish 9180:8080 \
+              --env SPRING_PROFILES_ACTIVE=staging \
+              --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              --env KEYCLOAK_URL=${{ secrets.KEYCLOAK_URL }} \
+              --with-registry-auth \
+              ${{ env.IMAGE }}:staging
+          fi
 
-            sleep 20
-            curl -sf http://localhost:9180/actuator/health || echo "Health check pendiente"
+          sleep 20
+          curl -sf http://localhost:9180/actuator/health && echo "Health OK" || echo "Health pendiente"
