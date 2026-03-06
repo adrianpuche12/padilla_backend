@@ -1,0 +1,59 @@
+name: Deploy — PRODUCCION
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/adrianpuche-padilla-backend
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Login DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Promover imagen staging -> latest (sin rebuild)
+        run: |
+          docker pull ${{ env.IMAGE }}:staging
+          docker tag ${{ env.IMAGE }}:staging ${{ env.IMAGE }}:latest
+          docker tag ${{ env.IMAGE }}:staging ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Deploy en servidor PRODUCCION
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            docker pull ${{ env.IMAGE }}:latest
+
+            if docker service ls | grep -q padilla-backend-prod; then
+              docker service update \
+                --image ${{ env.IMAGE }}:latest \
+                --with-registry-auth \
+                padilla-backend-prod
+            else
+              docker service create \
+                --name padilla-backend-prod \
+                --network padilla-network-prod \
+                --publish 9080:8080 \
+                --env SPRING_PROFILES_ACTIVE=prod \
+                --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+                --env KEYCLOAK_URL=${{ secrets.KEYCLOAK_URL }} \
+                --with-registry-auth \
+                ${{ env.IMAGE }}:latest
+            fi
+
+            sleep 30
+            curl -sf http://localhost:9080/actuator/health || exit 1
+            echo "Deploy PROD exitoso"
