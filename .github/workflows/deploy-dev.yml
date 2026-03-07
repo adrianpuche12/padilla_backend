@@ -41,6 +41,7 @@ jobs:
 
           if docker service ls | grep -q padilla-backend-dev; then
             docker service update \
+              --force \
               --image ${{ env.IMAGE }}:dev \
               --with-registry-auth \
               padilla-backend-dev
