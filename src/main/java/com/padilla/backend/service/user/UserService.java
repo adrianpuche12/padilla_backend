@@ -4,6 +4,7 @@ import com.padilla.backend.entity.User;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.UserRepository;
+import com.padilla.backend.service.auth.KeycloakAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final KeycloakAdminService keycloakAdminService;
 
     // Jerarquia de roles: menor numero = mayor privilegio
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
@@ -47,7 +49,9 @@ public class UserService {
     public User createUser(User user) {
         Role callerRole = getCurrentUserRole();
         validateCanManage(callerRole, user.getRole());
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        keycloakAdminService.createUser(saved.getName(), saved.getEmail(), saved.getRole());
+        return saved;
     }
 
     @Transactional
@@ -74,6 +78,7 @@ public class UserService {
 
         user.setActive(false);
         userRepository.save(user);
+        keycloakAdminService.disableUser(user.getEmail());
     }
 
     // --- RBAC helpers ---
