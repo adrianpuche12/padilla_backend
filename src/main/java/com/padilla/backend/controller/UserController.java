@@ -7,6 +7,7 @@ import com.padilla.backend.entity.User;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.service.user.UserService;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -117,6 +118,11 @@ public class UserController {
     public ResponseEntity<Void> deactivateUser(@PathVariable UUID id) {
         userService.deactivateUser(id);
         return ResponseEntity.ok().build();
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException ex) {
+        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
     }
 
     private UserDTO toDTO(User user) {

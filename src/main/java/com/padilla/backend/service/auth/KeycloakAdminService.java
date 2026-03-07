@@ -7,6 +7,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
@@ -91,34 +92,41 @@ public class KeycloakAdminService {
         );
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(userBody, headers);
-        ResponseEntity<Void> response = restTemplate.postForEntity(usersUrl, request, Void.class);
-
-        // El ID del usuario creado viene en el header Location
-        String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
-        return location != null ? location.substring(location.lastIndexOf('/') + 1) : null;
+        try {
+            ResponseEntity<Void> response = restTemplate.postForEntity(usersUrl, request, Void.class);
+            // El ID del usuario creado viene en el header Location
+            String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
+            return location != null ? location.substring(location.lastIndexOf('/') + 1) : null;
+        } catch (HttpClientErrorException.Conflict e) {
+            throw new IllegalStateException("El email ya está registrado en el sistema: " + email);
+        }
     }
 
     private void assignRole(String token, String userId, Role role) {
-        // 1. Obtener la representacion del rol en Keycloak
-        String roleUrl = serverUrl + "/admin/realms/" + realm + "/roles/" + role.name();
+        try {
+            // 1. Obtener la representacion del rol en Keycloak
+            String roleUrl = serverUrl + "/admin/realms/" + realm + "/roles/" + role.name();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
 
-        ResponseEntity<Map> roleResponse = restTemplate.exchange(
-                roleUrl, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            ResponseEntity<Map> roleResponse = restTemplate.exchange(
+                    roleUrl, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
 
-        Map<String, Object> roleRepresentation = roleResponse.getBody();
+            Map<String, Object> roleRepresentation = roleResponse.getBody();
 
-        // 2. Asignar el rol al usuario
-        String assignUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/realm";
-        headers.setContentType(MediaType.APPLICATION_JSON);
+            // 2. Asignar el rol al usuario
+            String assignUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/realm";
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-        restTemplate.postForEntity(
-                assignUrl,
-                new HttpEntity<>(List.of(roleRepresentation), headers),
-                Void.class
-        );
+            restTemplate.postForEntity(
+                    assignUrl,
+                    new HttpEntity<>(List.of(roleRepresentation), headers),
+                    Void.class
+            );
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Rol '{}' no encontrado en Keycloak, se omite asignacion de rol para usuario {}", role.name(), userId);
+        }
     }
 
     @SuppressWarnings("unchecked")
