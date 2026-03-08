@@ -34,3 +34,15 @@ CREATE INDEX IF NOT EXISTS idx_tickets_property_id
 
 CREATE INDEX IF NOT EXISTS idx_tickets_provider_id
     ON padilla_dev.tickets(provider_id);
+
+CREATE TABLE IF NOT EXISTS padilla_dev.ticket_comments (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id   UUID        NOT NULL REFERENCES padilla_dev.tickets(id) ON DELETE CASCADE,
+    author_id   UUID        NOT NULL REFERENCES padilla_dev.users(id),
+    content     TEXT        NOT NULL,
+    internal    BOOLEAN     NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket_id
+    ON padilla_dev.ticket_comments(ticket_id);
