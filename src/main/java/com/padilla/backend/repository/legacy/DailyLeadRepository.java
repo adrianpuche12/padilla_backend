@@ -1,6 +1,5 @@
-package com.padilla.backend.repository;
-
-import com.padilla.backend.entity.DailyLead;
+package com.padilla.backend.repository.legacy;
+import com.padilla.backend.entity.legacy.DailyLead;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

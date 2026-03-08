@@ -1,11 +1,11 @@
 package com.padilla.backend.service;
 
-import com.padilla.backend.entity.DailyLead;
-import com.padilla.backend.entity.LeadFormularioDashboard;
-import com.padilla.backend.entity.LeadPortalDashboard;
-import com.padilla.backend.repository.DailyLeadRepository;
-import com.padilla.backend.repository.LeadFormularioDashboardRepository;
-import com.padilla.backend.repository.LeadPortalDashboardRepository;
+import com.padilla.backend.entity.legacy.DailyLead;
+import com.padilla.backend.entity.legacy.LeadFormularioDashboard;
+import com.padilla.backend.entity.legacy.LeadPortalDashboard;
+import com.padilla.backend.repository.legacy.DailyLeadRepository;
+import com.padilla.backend.repository.legacy.LeadFormularioDashboardRepository;
+import com.padilla.backend.repository.legacy.LeadPortalDashboardRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;

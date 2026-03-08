@@ -1,5 +1,5 @@
-package com.padilla.backend.entity;
 
+package com.padilla.backend.entity.legacy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
