@@ -1,6 +1,7 @@
 package com.padilla.backend.controller;
 
 import com.padilla.backend.dto.user.CreateUserRequest;
+import com.padilla.backend.dto.user.CreateUserResponse;
 import com.padilla.backend.dto.user.UpdateUserRequest;
 import com.padilla.backend.dto.user.UserDTO;
 import com.padilla.backend.entity.User;
@@ -92,15 +93,30 @@ public class UserController {
 
     @PostMapping("/api/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
-    public ResponseEntity<UserDTO> createUser(@Valid @RequestBody CreateUserRequest request) {
+    public ResponseEntity<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setRole(request.getRole());
 
-        User created = userService.createUser(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(created));
+        UserService.CreateUserResult result = userService.createUserFull(user);
+        CreateUserResponse response = new CreateUserResponse(toDTO(result.user()), result.temporaryPassword());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/api/users/{id}/activate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
+    public ResponseEntity<UserDTO> reactivateUser(@PathVariable UUID id) {
+        User reactivated = userService.reactivateUser(id);
+        return ResponseEntity.ok(toDTO(reactivated));
+    }
+
+    @PostMapping("/api/users/{id}/reset-password")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> resetPassword(@PathVariable UUID id) {
+        String temporaryPassword = userService.resetPassword(id);
+        return ResponseEntity.ok(Map.of("temporaryPassword", temporaryPassword));
     }
 
     @PutMapping("/api/users/{id}")

@@ -10,6 +10,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +42,36 @@ public class KeycloakAdminService {
         assignRole(token, userId, role);
         log.info("Usuario creado en Keycloak: {} con rol {}", email, role);
         return userId;
+    }
+
+    public String generateAndSetTemporaryPassword(String userId) {
+        String password = generateSecurePassword();
+        String token = getAdminToken();
+        setTemporaryPassword(token, userId, password);
+        return password;
+    }
+
+    public void enableUser(String email) {
+        String token = getAdminToken();
+        String userId = findUserIdByEmail(token, email);
+        if (userId != null) {
+            updateUserEnabled(token, userId, true);
+            log.info("Usuario habilitado en Keycloak: {}", email);
+        } else {
+            log.warn("Usuario no encontrado en Keycloak para habilitar: {}", email);
+        }
+    }
+
+    public String resetPasswordByEmail(String email) {
+        String token = getAdminToken();
+        String userId = findUserIdByEmail(token, email);
+        if (userId == null) {
+            throw new RuntimeException("Usuario no encontrado en Keycloak: " + email);
+        }
+        String password = generateSecurePassword();
+        setTemporaryPassword(token, userId, password);
+        log.info("Password reseteado en Keycloak para: {}", email);
+        return password;
     }
 
     public void disableUser(String email) {
@@ -155,5 +186,30 @@ public class KeycloakAdminService {
 
         Map<String, Object> body = Map.of("enabled", enabled);
         restTemplate.exchange(userUrl, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
+    }
+
+    private void setTemporaryPassword(String token, String userId, String password) {
+        String passwordUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId + "/reset-password";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+
+        Map<String, Object> body = Map.of(
+                "type", "password",
+                "value", password,
+                "temporary", true
+        );
+        restTemplate.exchange(passwordUrl, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
+    }
+
+    private String generateSecurePassword() {
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(12);
+        for (int i = 0; i < 12; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 }

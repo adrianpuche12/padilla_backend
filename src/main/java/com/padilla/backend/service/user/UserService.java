@@ -49,9 +49,13 @@ public class UserService {
     public User createUser(User user) {
         Role callerRole = getCurrentUserRole();
         validateCanManage(callerRole, user.getRole());
-        User saved = userRepository.save(user);
-        keycloakAdminService.createUser(saved.getName(), saved.getEmail(), saved.getRole());
-        return saved;
+        // Crear en Keycloak primero para obtener su UUID y usarlo como ID en DB.
+        // Esto garantiza que DB ID == Keycloak sub, necesario para que RBAC funcione.
+        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
+        if (keycloakId != null) {
+            user.setId(UUID.fromString(keycloakId));
+        }
+        return userRepository.save(user);
     }
 
     @Transactional
@@ -80,6 +84,54 @@ public class UserService {
         userRepository.save(user);
         keycloakAdminService.disableUser(user.getEmail());
     }
+
+    @Transactional
+    public CreateUserResult createUserFull(User user) {
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+
+        String callerUuid = SecurityContextHolder.getContext().getAuthentication().getName();
+        try {
+            user.setCreatedBy(UUID.fromString(callerUuid));
+        } catch (IllegalArgumentException ignored) {
+            // Si el subject no es UUID (ej: username) se deja null
+        }
+
+        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
+        if (keycloakId != null) {
+            user.setId(UUID.fromString(keycloakId));
+        }
+        User saved = userRepository.save(user);
+
+        String tempPassword = null;
+        if (keycloakId != null) {
+            tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
+        }
+
+        return new CreateUserResult(saved, tempPassword);
+    }
+
+    @Transactional
+    public User reactivateUser(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+
+        user.setActive(true);
+        userRepository.save(user);
+        keycloakAdminService.enableUser(user.getEmail());
+        return user;
+    }
+
+    public String resetPassword(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+        return keycloakAdminService.resetPasswordByEmail(user.getEmail());
+    }
+
+    public record CreateUserResult(User user, String temporaryPassword) {}
 
     // --- RBAC helpers ---
 
