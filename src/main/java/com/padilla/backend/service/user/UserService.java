@@ -5,6 +5,8 @@ import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.service.auth.KeycloakAdminService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +24,9 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final KeycloakAdminService keycloakAdminService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // Jerarquia de roles: menor numero = mayor privilegio
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
@@ -101,14 +106,17 @@ public class UserService {
         if (keycloakId != null) {
             user.setId(UUID.fromString(keycloakId));
         }
-        User saved = userRepository.save(user);
+        // Usar persist() directamente porque la entidad es NUEVA (transient) con ID seteado
+        // manualmente. Si usamos save() -> merge(), Hibernate la trata como detached y falla.
+        entityManager.persist(user);
+        entityManager.flush();
 
         String tempPassword = null;
         if (keycloakId != null) {
             tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
         }
 
-        return new CreateUserResult(saved, tempPassword);
+        return new CreateUserResult(user, tempPassword);
     }
 
     @Transactional
