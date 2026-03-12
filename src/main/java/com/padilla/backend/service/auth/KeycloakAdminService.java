@@ -198,7 +198,7 @@ public class KeycloakAdminService {
         Map<String, Object> body = Map.of(
                 "type", "password",
                 "value", password,
-                "temporary", true
+                "temporary", false
         );
         restTemplate.exchange(passwordUrl, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
     }

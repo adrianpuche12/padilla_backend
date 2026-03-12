@@ -5,9 +5,9 @@ import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.service.auth.KeycloakAdminService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -24,9 +24,10 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final KeycloakAdminService keycloakAdminService;
+    private final JdbcTemplate jdbcTemplate;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    @Value("${spring.jpa.properties.hibernate.default_schema:padilla_dev}")
+    private String schema;
 
     // Jerarquia de roles: menor numero = mayor privilegio
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
@@ -95,28 +96,41 @@ public class UserService {
         Role callerRole = getCurrentUserRole();
         validateCanManage(callerRole, user.getRole());
 
-        String callerUuid = SecurityContextHolder.getContext().getAuthentication().getName();
-        try {
-            user.setCreatedBy(UUID.fromString(callerUuid));
-        } catch (IllegalArgumentException ignored) {
-            // Si el subject no es UUID (ej: username) se deja null
+        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
+
+        UUID newId = null;
+        if (keycloakId != null) {
+            newId = UUID.fromString(keycloakId);
         }
 
-        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
-        if (keycloakId != null) {
-            user.setId(UUID.fromString(keycloakId));
-        }
-        // Usar persist() directamente porque la entidad es NUEVA (transient) con ID seteado
-        // manualmente. Si usamos save() -> merge(), Hibernate la trata como detached y falla.
-        entityManager.persist(user);
-        entityManager.flush();
+        // JdbcTemplate INSERT para evitar conflicto de ciclo de vida JPA:
+        // @GeneratedValue hace que Hibernate trate cualquier entidad con ID != null
+        // como "detached", tanto merge() como persist() fallan. JDBC lo evita completamente.
+        UUID createdBy = null;
+        try {
+            createdBy = UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
+        } catch (IllegalArgumentException ignored) {}
+
+        jdbcTemplate.update(
+                "INSERT INTO " + schema + ".users (id, name, email, phone, role, active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                newId,
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getRole().name(),
+                true,
+                createdBy
+        );
+
+        User saved = userRepository.findById(newId)
+                .orElseThrow(() -> new RuntimeException("Failed to load user after creation"));
 
         String tempPassword = null;
         if (keycloakId != null) {
             tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
         }
 
-        return new CreateUserResult(user, tempPassword);
+        return new CreateUserResult(saved, tempPassword);
     }
 
     @Transactional
