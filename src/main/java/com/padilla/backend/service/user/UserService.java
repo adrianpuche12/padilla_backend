@@ -5,6 +5,7 @@ import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.service.auth.KeycloakAdminService;
+import com.padilla.backend.service.email.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,6 +26,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final KeycloakAdminService keycloakAdminService;
     private final JdbcTemplate jdbcTemplate;
+    private final EmailService emailService;
 
     @Value("${spring.jpa.properties.hibernate.default_schema:padilla_dev}")
     private String schema;
@@ -112,7 +114,8 @@ public class UserService {
         } catch (IllegalArgumentException ignored) {}
 
         jdbcTemplate.update(
-                "INSERT INTO " + schema + ".users (id, name, email, phone, role, active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                "INSERT INTO " + schema + ".users (id, name, email, phone, role, active, created_by, created_at, first_login, password_reset_expires_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, NOW() + INTERVAL '24 hours')",
                 newId,
                 user.getName(),
                 user.getEmail(),
@@ -129,6 +132,8 @@ public class UserService {
         if (keycloakId != null) {
             tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
         }
+
+        emailService.sendWelcomeEmail(saved.getEmail(), saved.getName(), tempPassword);
 
         return new CreateUserResult(saved, tempPassword);
     }

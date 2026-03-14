@@ -74,6 +74,12 @@ public class KeycloakAdminService {
         return password;
     }
 
+    public void setPermanentPasswordById(String userId, String newPassword) {
+        String token = getAdminToken();
+        setTemporaryPassword(token, userId, newPassword);
+        log.info("Password permanente establecido para usuario ID: {}", userId);
+    }
+
     public void disableUser(String email) {
         String token = getAdminToken();
         String userId = findUserIdByEmail(token, email);

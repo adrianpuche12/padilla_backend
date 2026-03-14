@@ -41,6 +41,12 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "first_login", nullable = false)
+    private boolean firstLogin = true;
+
+    @Column(name = "password_reset_expires_at")
+    private OffsetDateTime passwordResetExpiresAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = OffsetDateTime.now();

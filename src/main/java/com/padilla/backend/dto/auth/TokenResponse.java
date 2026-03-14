@@ -1,5 +1,6 @@
 package com.padilla.backend.dto.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,4 +27,8 @@ public class TokenResponse {
 
     @JsonProperty("token_type")
     private String tokenType;
+
+    @JsonProperty("first_login")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean firstLogin;
 }
