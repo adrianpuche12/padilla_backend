@@ -32,6 +32,9 @@ public class KeycloakAdminService {
     @Value("${keycloak.admin.password}")
     private String adminPassword;
 
+    @Value("${keycloak.client-id}")
+    private String kcClientId;
+
     // ---------------------------------------------------
     // API publica
     // ---------------------------------------------------
@@ -157,10 +160,14 @@ public class KeycloakAdminService {
     }
 
     private void assignRole(String token, String userId, Role role) {
-        // 1. Obtener la representacion del rol en Keycloak
-        // Lanza HttpClientErrorException.NotFound si el realm role no existe —
-        // esto es un error de configuracion de Keycloak, no debe silenciarse.
-        String roleUrl = serverUrl + "/admin/realms/" + realm + "/roles/" + role.name();
+        // Los roles de Padilla estan configurados como client roles en padilla_frontend,
+        // no como realm roles. Se usa la API de client roles para asignarlos.
+
+        // 1. Obtener el ID interno (UUID) del cliente en Keycloak
+        String clientInternalId = getClientInternalId(token, kcClientId);
+
+        // 2. Obtener la representacion del client role
+        String roleUrl = serverUrl + "/admin/realms/" + realm + "/clients/" + clientInternalId + "/roles/" + role.name();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -170,8 +177,8 @@ public class KeycloakAdminService {
 
         Map<String, Object> roleRepresentation = roleResponse.getBody();
 
-        // 2. Asignar el rol al usuario
-        String assignUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/realm";
+        // 3. Asignar el client role al usuario
+        String assignUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/clients/" + clientInternalId;
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         restTemplate.postForEntity(
@@ -179,7 +186,24 @@ public class KeycloakAdminService {
                 new HttpEntity<>(List.of(roleRepresentation), headers),
                 Void.class
         );
-        log.info("Rol '{}' asignado en Keycloak al usuario {}", role.name(), userId);
+        log.info("Rol '{}' asignado en Keycloak (client: {}) al usuario {}", role.name(), kcClientId, userId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getClientInternalId(String token, String clientId) {
+        String clientsUrl = serverUrl + "/admin/realms/" + realm + "/clients?clientId=" + clientId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ResponseEntity<List> response = restTemplate.exchange(
+                clientsUrl, HttpMethod.GET, new HttpEntity<>(headers), List.class);
+
+        List<Map<String, Object>> clients = response.getBody();
+        if (clients == null || clients.isEmpty()) {
+            throw new RuntimeException("Cliente Keycloak no encontrado: " + clientId);
+        }
+        return (String) clients.get(0).get("id");
     }
 
     @SuppressWarnings("unchecked")

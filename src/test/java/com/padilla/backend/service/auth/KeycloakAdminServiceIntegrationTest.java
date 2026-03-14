@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Requiere:
  *   - Keycloak corriendo en http://62.171.160.238:8095
- *   - Realm "padilla" configurado con roles SUPER_ADMIN, MANAGER, ADMIN, OWNER, TENANT, PROVIDER
+ *   - Client "padilla_frontend" con client roles: SUPER_ADMIN, MANAGER, ADMIN, OWNER, TENANT, PROVIDER
  *   - Admin "admin" / "GeronimoAdmin2024!" con permisos sobre el realm
  *
  * Estrategia de aislamiento:
@@ -68,6 +68,7 @@ class KeycloakAdminServiceIntegrationTest {
         ReflectionTestUtils.setField(adminService, "realm",         KC_REALM);
         ReflectionTestUtils.setField(adminService, "adminUsername", KC_ADMIN_USER);
         ReflectionTestUtils.setField(adminService, "adminPassword", KC_ADMIN_PASS);
+        ReflectionTestUtils.setField(adminService, "kcClientId",    "padilla_frontend");
     }
 
     @AfterAll
