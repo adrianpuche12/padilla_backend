@@ -368,14 +368,11 @@ class UserServiceTest {
             UUID targetId = UUID.randomUUID();
             User target = buildUser(targetId, "target@padilla.test", Role.ADMIN);
             when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
-            doNothing().when(userRepository).deleteById(targetId);
-            doNothing().when(keycloakAdminService).deleteUserById(targetId.toString());
 
             userService.deleteUserPermanently(targetId);
 
-            // Verificar que se llamo a ambos
             verify(userRepository, times(1)).deleteById(targetId);
-            verify(keycloakAdminService, times(1)).deleteUserById(targetId.toString());
+            verify(keycloakAdminService, times(1)).deleteUserByEmail("target@padilla.test");
         }
 
         @Test
@@ -393,7 +390,7 @@ class UserServiceTest {
             userService.deleteUserPermanently(targetId);
 
             inOrder.verify(userRepository).deleteById(targetId);
-            inOrder.verify(keycloakAdminService).deleteUserById(targetId.toString());
+            inOrder.verify(keycloakAdminService).deleteUserByEmail("target@padilla.test");
         }
 
         @Test
@@ -404,9 +401,8 @@ class UserServiceTest {
             UUID targetId = UUID.randomUUID();
             User target = buildUser(targetId, "target@padilla.test", Role.ADMIN);
             when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
-            doNothing().when(userRepository).deleteById(targetId);
             doThrow(new RuntimeException("Keycloak no disponible"))
-                    .when(keycloakAdminService).deleteUserById(anyString());
+                    .when(keycloakAdminService).deleteUserByEmail("target@padilla.test");
 
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> userService.deleteUserPermanently(targetId));
@@ -441,21 +437,20 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("UUID no existe en Keycloak (huerfano): deleteUserById maneja 404 y DB se elimina igual")
-        void deleteUserPermanently_keycloakDevuelve404_dbSeEliminaIgual() {
+        @DisplayName("Usuario no existe en Keycloak (UUID desincronizado): deleteUserByEmail maneja not-found y DB se elimina igual")
+        void deleteUserPermanently_keycloakNoEncuentraUsuario_dbSeEliminaIgual() {
             mockCallerRoleAndEmail(Role.SUPER_ADMIN, "caller@padilla.test");
 
             UUID targetId = UUID.randomUUID();
             User target = buildUser(targetId, "target@padilla.test", Role.ADMIN);
             when(userRepository.findById(targetId)).thenReturn(Optional.of(target));
-            doNothing().when(userRepository).deleteById(targetId);
-            // Keycloak devuelve 404 — deleteUserById lo maneja internamente con un warn
-            // y NO lanza excepcion, por lo que el metodo completa normalmente
-            doNothing().when(keycloakAdminService).deleteUserById(targetId.toString());
+            // deleteUserByEmail no lanza excepcion si no encuentra el usuario (log warn y retorna)
+            doNothing().when(keycloakAdminService).deleteUserByEmail("target@padilla.test");
 
             assertDoesNotThrow(() -> userService.deleteUserPermanently(targetId),
-                    "Si Keycloak no encuentra el usuario (404), la operacion debe completarse eliminando de DB");
+                    "Si Keycloak no encuentra el usuario por email, la operacion completa eliminando de DB");
             verify(userRepository, times(1)).deleteById(targetId);
+            verify(keycloakAdminService, times(1)).deleteUserByEmail("target@padilla.test");
         }
 
         @Test

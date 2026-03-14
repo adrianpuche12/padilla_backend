@@ -206,9 +206,11 @@ public class UserService {
         // Se elimina primero de la DB (dentro de la transaccion).
         // Si la llamada a Keycloak falla despues, Spring hace rollback
         // y el usuario queda intacto en la DB. Orden intencionado.
+        // Se usa deleteUserByEmail (no deleteUserById) para manejar correctamente
+        // usuarios con UUID desincronizado entre DB y Keycloak.
         userRepository.deleteById(id);
 
-        keycloakAdminService.deleteUserById(id.toString());
+        keycloakAdminService.deleteUserByEmail(user.getEmail());
     }
 
     public record CreateUserResult(User user, String temporaryPassword) {}
