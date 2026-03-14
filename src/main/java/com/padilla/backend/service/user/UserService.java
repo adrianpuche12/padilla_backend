@@ -5,7 +5,10 @@ import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.service.auth.KeycloakAdminService;
+import com.padilla.backend.service.email.EmailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,11 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final KeycloakAdminService keycloakAdminService;
+    private final JdbcTemplate jdbcTemplate;
+    private final EmailService emailService;
+
+    @Value("${spring.jpa.properties.hibernate.default_schema:padilla_dev}")
+    private String schema;
 
     // Jerarquia de roles: menor numero = mayor privilegio
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
@@ -49,9 +57,13 @@ public class UserService {
     public User createUser(User user) {
         Role callerRole = getCurrentUserRole();
         validateCanManage(callerRole, user.getRole());
-        User saved = userRepository.save(user);
-        keycloakAdminService.createUser(saved.getName(), saved.getEmail(), saved.getRole());
-        return saved;
+        // Crear en Keycloak primero para obtener su UUID y usarlo como ID en DB.
+        // Esto garantiza que DB ID == Keycloak sub, necesario para que RBAC funcione.
+        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
+        if (keycloakId != null) {
+            user.setId(UUID.fromString(keycloakId));
+        }
+        return userRepository.save(user);
     }
 
     @Transactional
@@ -80,6 +92,73 @@ public class UserService {
         userRepository.save(user);
         keycloakAdminService.disableUser(user.getEmail());
     }
+
+    @Transactional
+    public CreateUserResult createUserFull(User user) {
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+
+        String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
+
+        UUID newId = null;
+        if (keycloakId != null) {
+            newId = UUID.fromString(keycloakId);
+        }
+
+        // JdbcTemplate INSERT para evitar conflicto de ciclo de vida JPA:
+        // @GeneratedValue hace que Hibernate trate cualquier entidad con ID != null
+        // como "detached", tanto merge() como persist() fallan. JDBC lo evita completamente.
+        UUID createdBy = null;
+        try {
+            createdBy = UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
+        } catch (IllegalArgumentException ignored) {}
+
+        jdbcTemplate.update(
+                "INSERT INTO " + schema + ".users (id, name, email, phone, role, active, created_by, created_at, first_login, password_reset_expires_at) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), TRUE, NOW() + INTERVAL '24 hours')",
+                newId,
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getRole().name(),
+                true,
+                createdBy
+        );
+
+        User saved = userRepository.findById(newId)
+                .orElseThrow(() -> new RuntimeException("Failed to load user after creation"));
+
+        String tempPassword = null;
+        if (keycloakId != null) {
+            tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
+        }
+
+        emailService.sendWelcomeEmail(saved.getEmail(), saved.getName(), tempPassword);
+
+        return new CreateUserResult(saved, tempPassword);
+    }
+
+    @Transactional
+    public User reactivateUser(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+
+        user.setActive(true);
+        userRepository.save(user);
+        keycloakAdminService.enableUser(user.getEmail());
+        return user;
+    }
+
+    public String resetPassword(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+        return keycloakAdminService.resetPasswordByEmail(user.getEmail());
+    }
+
+    public record CreateUserResult(User user, String temporaryPassword) {}
 
     // --- RBAC helpers ---
 
