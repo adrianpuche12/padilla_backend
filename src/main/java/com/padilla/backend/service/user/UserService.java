@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,15 +44,28 @@ public class UserService {
     );
 
     public List<User> findAll() {
-        return userRepository.findAll();
+        Role callerRole = getCurrentUserRole();
+        int callerLevel = ROLE_LEVEL.get(callerRole);
+        return userRepository.findAll().stream()
+                .filter(u -> ROLE_LEVEL.getOrDefault(u.getRole(), 99) > callerLevel)
+                .collect(Collectors.toList());
     }
 
     public List<User> findByRole(Role role) {
+        Role callerRole = getCurrentUserRole();
+        int callerLevel = ROLE_LEVEL.get(callerRole);
+        int targetLevel = ROLE_LEVEL.getOrDefault(role, 99);
+        if (targetLevel <= callerLevel) {
+            return List.of();
+        }
         return userRepository.findByRole(role);
     }
 
     public Optional<User> findById(UUID id) {
-        return userRepository.findById(id);
+        Role callerRole = getCurrentUserRole();
+        int callerLevel = ROLE_LEVEL.get(callerRole);
+        return userRepository.findById(id)
+                .filter(u -> ROLE_LEVEL.getOrDefault(u.getRole(), 99) > callerLevel);
     }
 
     @Transactional

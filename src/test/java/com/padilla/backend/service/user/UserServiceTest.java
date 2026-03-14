@@ -481,29 +481,50 @@ class UserServiceTest {
     // ---------------------------------------------------------------
 
     @Nested
-    @DisplayName("Consultas — findAll, findById, findByRole")
+    @DisplayName("Consultas — findAll, findById, findByRole con filtro por nivel")
     class Consultas {
 
         @Test
-        @DisplayName("findAll delega correctamente al repositorio")
-        void findAll_deberiaDelegar() {
-            List<User> mockUsers = List.of(
+        @DisplayName("findAll_superAdmin_retornaTodosLosUsuariosDeNivelInferior")
+        void findAll_superAdmin_deberiaRetornarTodosDebajo() {
+            mockCallerRole(Role.SUPER_ADMIN);
+            List<User> todos = List.of(
+                    buildUser(UUID.randomUUID(), "m@test.com", Role.MANAGER),
                     buildUser(UUID.randomUUID(), "a@test.com", Role.ADMIN),
-                    buildUser(UUID.randomUUID(), "b@test.com", Role.TENANT)
+                    buildUser(UUID.randomUUID(), "t@test.com", Role.TENANT)
             );
-            when(userRepository.findAll()).thenReturn(mockUsers);
+            when(userRepository.findAll()).thenReturn(todos);
+
+            List<User> result = userService.findAll();
+
+            assertEquals(3, result.size()); // SUPER_ADMIN ve todos los de nivel > 0
+            verify(userRepository).findAll();
+        }
+
+        @Test
+        @DisplayName("findAll_admin_retornaSoloNivel3_ocultaIgualesYSuperiores")
+        void findAll_admin_deberiaOcultarIgualesYSuperiores() {
+            mockCallerRole(Role.ADMIN);
+            List<User> todos = List.of(
+                    buildUser(UUID.randomUUID(), "manager@test.com", Role.MANAGER),  // nivel 1 — oculto
+                    buildUser(UUID.randomUUID(), "admin2@test.com", Role.ADMIN),     // nivel 2 — oculto
+                    buildUser(UUID.randomUUID(), "owner@test.com", Role.OWNER),      // nivel 3 — visible
+                    buildUser(UUID.randomUUID(), "tenant@test.com", Role.TENANT)     // nivel 3 — visible
+            );
+            when(userRepository.findAll()).thenReturn(todos);
 
             List<User> result = userService.findAll();
 
             assertEquals(2, result.size());
-            verify(userRepository, times(1)).findAll();
+            assertTrue(result.stream().allMatch(u -> u.getRole() == Role.OWNER || u.getRole() == Role.TENANT));
         }
 
         @Test
-        @DisplayName("findById retorna Optional con el usuario si existe")
+        @DisplayName("findById_existente_retornaUsuarioSiEsDeNivelInferior")
         void findById_existente_deberiaRetornarOptionalConUsuario() {
+            mockCallerRole(Role.SUPER_ADMIN);
             UUID id = UUID.randomUUID();
-            User user = buildUser(id, "test@test.com", Role.MANAGER);
+            User user = buildUser(id, "manager@test.com", Role.MANAGER);
             when(userRepository.findById(id)).thenReturn(Optional.of(user));
 
             Optional<User> result = userService.findById(id);
@@ -513,8 +534,9 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("findById retorna Optional vacio si no existe")
+        @DisplayName("findById_noExistente_retornaOptionalVacio")
         void findById_noExistente_deberiaRetornarOptionalVacio() {
+            mockCallerRole(Role.SUPER_ADMIN);
             UUID id = UUID.randomUUID();
             when(userRepository.findById(id)).thenReturn(Optional.empty());
 
@@ -524,16 +546,40 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("findByRole filtra correctamente por rol")
-        void findByRole_deberiaFiltrarPorRol() {
-            List<User> admins = List.of(buildUser(UUID.randomUUID(), "admin@test.com", Role.ADMIN));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(admins);
+        @DisplayName("findById_usuarioDeNivelIgualOSuperior_retornaVacio")
+        void findById_usuarioNoVisible_deberiaRetornarVacio() {
+            mockCallerRole(Role.ADMIN); // nivel 2
+            UUID id = UUID.randomUUID();
+            User manager = buildUser(id, "manager@test.com", Role.MANAGER); // nivel 1
+            when(userRepository.findById(id)).thenReturn(Optional.of(manager));
 
-            List<User> result = userService.findByRole(Role.ADMIN);
+            Optional<User> result = userService.findById(id);
+
+            assertTrue(result.isEmpty()); // ADMIN no puede ver MANAGER
+        }
+
+        @Test
+        @DisplayName("findByRole_rolVisible_retornaUsuariosDeEseRol")
+        void findByRole_rolVisible_deberiaRetornarUsuarios() {
+            mockCallerRole(Role.ADMIN); // nivel 2, puede ver OWNER (nivel 3)
+            List<User> owners = List.of(buildUser(UUID.randomUUID(), "owner@test.com", Role.OWNER));
+            when(userRepository.findByRole(Role.OWNER)).thenReturn(owners);
+
+            List<User> result = userService.findByRole(Role.OWNER);
 
             assertEquals(1, result.size());
-            assertEquals(Role.ADMIN, result.get(0).getRole());
-            verify(userRepository, times(1)).findByRole(Role.ADMIN);
+            verify(userRepository).findByRole(Role.OWNER);
+        }
+
+        @Test
+        @DisplayName("findByRole_rolNoVisible_retornaListaVaciaSinConsultarDB")
+        void findByRole_rolNoVisible_deberiaRetornarVacio() {
+            mockCallerRole(Role.ADMIN); // nivel 2, NO puede ver MANAGER (nivel 1)
+
+            List<User> result = userService.findByRole(Role.MANAGER);
+
+            assertEquals(0, result.size());
+            verify(userRepository, never()).findByRole(Role.MANAGER); // nunca llega a la DB
         }
     }
 
