@@ -14,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -152,10 +153,48 @@ public class UserService {
         return user;
     }
 
+    @Transactional
     public String resetPassword(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
-        return keycloakAdminService.resetPasswordByEmail(user.getEmail());
+        String tempPassword = keycloakAdminService.resetPasswordByEmail(user.getEmail());
+        user.setFirstLogin(true);
+        user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
+        userRepository.save(user);
+        emailService.sendPasswordResetEmail(user.getEmail(), user.getName(), tempPassword);
+        return tempPassword;
+    }
+
+    @Transactional
+    public void resendAccess(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+
+        String tempPassword = keycloakAdminService.resetPasswordByEmail(user.getEmail());
+        user.setFirstLogin(true);
+        user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
+        userRepository.save(user);
+        emailService.sendPasswordResetEmail(user.getEmail(), user.getName(), tempPassword);
+    }
+
+    @Transactional
+    public void deleteUserPermanently(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+
+        Role callerRole = getCurrentUserRole();
+        validateCanManage(callerRole, user.getRole());
+        validateNotSelf(user.getEmail());
+
+        // Se elimina primero de la DB (dentro de la transaccion).
+        // Si la llamada a Keycloak falla despues, Spring hace rollback
+        // y el usuario queda intacto en la DB. Orden intencionado.
+        userRepository.deleteById(id);
+
+        keycloakAdminService.deleteUserById(id.toString());
     }
 
     public record CreateUserResult(User user, String temporaryPassword) {}

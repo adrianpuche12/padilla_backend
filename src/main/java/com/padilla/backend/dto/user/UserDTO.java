@@ -21,4 +21,6 @@ public class UserDTO {
     private boolean active;
     private UUID createdBy;
     private OffsetDateTime createdAt;
+    private boolean firstLogin;
+    private OffsetDateTime passwordResetExpiresAt;
 }

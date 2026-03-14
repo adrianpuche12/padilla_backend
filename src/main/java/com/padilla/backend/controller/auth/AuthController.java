@@ -1,6 +1,7 @@
 package com.padilla.backend.controller.auth;
 
 import com.padilla.backend.dto.auth.ChangePasswordRequest;
+import com.padilla.backend.dto.auth.ForgotPasswordRequest;
 import com.padilla.backend.dto.auth.LoginRequest;
 import com.padilla.backend.dto.auth.RefreshRequest;
 import com.padilla.backend.dto.auth.TokenResponse;
@@ -8,6 +9,7 @@ import com.padilla.backend.entity.User;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.service.auth.KeycloakAdminService;
 import com.padilla.backend.service.auth.KeycloakAuthService;
+import com.padilla.backend.service.email.EmailService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,7 @@ public class AuthController {
     private final KeycloakAuthService keycloakAuthService;
     private final KeycloakAdminService keycloakAdminService;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     // Requisitos de seguridad del password
     private static final int MIN_LENGTH        = 8;
@@ -128,6 +131,57 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al actualizar la contraseña"));
         }
+    }
+
+    /**
+     * POST /api/auth/forgot-password
+     * Flujo de autoservicio: el usuario que olvidó su contraseña solicita un reset.
+     * Genera una contraseña temporal, actualiza Keycloak y la DB, y envía email.
+     *
+     * Seguridad: siempre devuelve 200 OK, sin revelar si el email existe o no en el sistema.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        String email = request.getEmail().toLowerCase().trim();
+        log.info("Solicitud de restablecimiento de contraseña para: {}", email);
+
+        try {
+            Optional<User> userOpt = userRepository.findByEmail(email);
+
+            if (userOpt.isEmpty()) {
+                // No revelar que el email no existe — respuesta genérica
+                log.info("Solicitud de forgot-password para email no registrado: {}", email);
+                return ResponseEntity.ok(Map.of("message", "Si el email está registrado, recibirás las instrucciones en tu correo."));
+            }
+
+            User user = userOpt.get();
+
+            if (!user.isActive()) {
+                // Cuenta desactivada — no permitir reset, pero tampoco revelar el motivo
+                log.warn("Solicitud de forgot-password para cuenta inactiva: {}", email);
+                return ResponseEntity.ok(Map.of("message", "Si el email está registrado, recibirás las instrucciones en tu correo."));
+            }
+
+            // Generar nueva contraseña temporal en Keycloak
+            String tempPassword = keycloakAdminService.resetPasswordByEmail(email);
+
+            // Reactivar el flujo de primer login para forzar el cambio de contraseña
+            user.setFirstLogin(true);
+            user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
+            userRepository.save(user);
+
+            // Enviar email con la contraseña temporal
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getName(), tempPassword);
+
+            log.info("Restablecimiento de contraseña procesado para: {}", email);
+
+        } catch (Exception e) {
+            // Error interno (Keycloak no disponible, etc.) — no revelar al cliente
+            log.error("Error al procesar forgot-password para {}: {}", email, e.getMessage());
+        }
+
+        // Siempre 200 — nunca revelar si el email existe, si la cuenta está activa, ni el resultado
+        return ResponseEntity.ok(Map.of("message", "Si el email está registrado, recibirás las instrucciones en tu correo."));
     }
 
     /**

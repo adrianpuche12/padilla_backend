@@ -91,6 +91,23 @@ public class KeycloakAdminService {
         }
     }
 
+    public void deleteUserById(String userId) {
+        String token = getAdminToken();
+        String userUrl = serverUrl + "/admin/realms/" + realm + "/users/" + userId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        try {
+            restTemplate.exchange(userUrl, HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+            log.info("Usuario eliminado de Keycloak: {}", userId);
+        } catch (HttpClientErrorException.NotFound e) {
+            // El usuario no existe en Keycloak (UUID desincronizado — creado antes del Sprint 3).
+            // No es un error: el registro en DB es un huerfano y debe eliminarse igualmente.
+            log.warn("Usuario {} no encontrado en Keycloak al intentar eliminar. Se elimina solo de DB.", userId);
+        }
+    }
+
     // ---------------------------------------------------
     // Helpers privados
     // ---------------------------------------------------

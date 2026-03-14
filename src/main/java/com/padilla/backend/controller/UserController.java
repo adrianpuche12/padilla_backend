@@ -119,6 +119,13 @@ public class UserController {
         return ResponseEntity.ok(Map.of("temporaryPassword", temporaryPassword));
     }
 
+    @PatchMapping("/api/users/{id}/resend-access")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> resendAccess(@PathVariable UUID id) {
+        userService.resendAccess(id);
+        return ResponseEntity.ok(Map.of("message", "Acceso reenviado exitosamente"));
+    }
+
     @PutMapping("/api/users/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
     public ResponseEntity<UserDTO> updateUser(
@@ -136,6 +143,13 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping("/api/users/{id}/permanent")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> deleteUserPermanently(@PathVariable UUID id) {
+        userService.deleteUserPermanently(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
@@ -150,7 +164,9 @@ public class UserController {
                 user.getRole(),
                 user.isActive(),
                 user.getCreatedBy(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                user.isFirstLogin(),
+                user.getPasswordResetExpiresAt()
         );
     }
 }
