@@ -1,6 +1,7 @@
 package com.padilla.backend.entity;
 
 import com.padilla.backend.enums.ContractStatus;
+import com.padilla.backend.enums.ContractType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,6 +23,9 @@ public class Contract {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "legacy_id")
+    private Integer legacyId;
+
     @Column(name = "property_id", nullable = false)
     private UUID propertyId;
 
@@ -37,6 +41,9 @@ public class Contract {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    @Column(name = "signing_date")
+    private LocalDate signingDate;
+
     @Column(name = "monthly_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal monthlyAmount;
 
@@ -46,6 +53,28 @@ public class Contract {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private ContractStatus status = ContractStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "contract_type")
+    private ContractType contractType;
+
+    @Column(name = "commission_pct", precision = 5, scale = 2)
+    private BigDecimal commissionPct;
+
+    @Column(name = "admin_fee_pct", precision = 5, scale = 2)
+    private BigDecimal adminFeePct;
+
+    @Column(name = "co_owner", length = 150)
+    private String coOwner;
+
+    @Column(name = "co_tenant", length = 150)
+    private String coTenant;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @Column(name = "producer", length = 150)
+    private String producer;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
