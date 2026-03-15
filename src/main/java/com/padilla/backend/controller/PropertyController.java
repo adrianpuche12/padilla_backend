@@ -50,6 +50,18 @@ public class PropertyController {
         property.setRooms(request.getRooms());
         property.setOwnerId(request.getOwnerId());
         property.setStatus(PropertyStatus.AVAILABLE);
+        property.setLegacyId(request.getLegacyId());
+        property.setStreet(request.getStreet());
+        property.setStreetNumber(request.getStreetNumber());
+        property.setFloor(request.getFloor());
+        property.setApartment(request.getApartment());
+        property.setCity(request.getCity());
+        property.setProvince(request.getProvince());
+        property.setRentalStatus(request.getRentalStatus());
+        property.setSaleStatus(request.getSaleStatus());
+        property.setEntryDate(request.getEntryDate());
+        property.setRentalProducer(request.getRentalProducer());
+        property.setSaleProducer(request.getSaleProducer());
 
         Property created = propertyService.create(property);
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(created));
@@ -79,17 +91,29 @@ public class PropertyController {
     }
 
     private PropertyDTO toDTO(Property p) {
-        return new PropertyDTO(
-                p.getId(),
-                p.getAddress(),
-                p.getType(),
-                p.getSquareMeters(),
-                p.getRooms(),
-                p.getOwnerId(),
-                p.getTenantId(),
-                p.getStatus(),
-                p.isActive(),
-                p.getCreatedAt()
-        );
+        PropertyDTO dto = new PropertyDTO();
+        dto.setId(p.getId());
+        dto.setAddress(p.getAddress());
+        dto.setType(p.getType());
+        dto.setSquareMeters(p.getSquareMeters());
+        dto.setRooms(p.getRooms());
+        dto.setOwnerId(p.getOwnerId());
+        dto.setTenantId(p.getTenantId());
+        dto.setStatus(p.getStatus());
+        dto.setActive(p.isActive());
+        dto.setCreatedAt(p.getCreatedAt());
+        dto.setLegacyId(p.getLegacyId());
+        dto.setStreet(p.getStreet());
+        dto.setStreetNumber(p.getStreetNumber());
+        dto.setFloor(p.getFloor());
+        dto.setApartment(p.getApartment());
+        dto.setCity(p.getCity());
+        dto.setProvince(p.getProvince());
+        dto.setRentalStatus(p.getRentalStatus());
+        dto.setSaleStatus(p.getSaleStatus());
+        dto.setEntryDate(p.getEntryDate());
+        dto.setRentalProducer(p.getRentalProducer());
+        dto.setSaleProducer(p.getSaleProducer());
+        return dto;
     }
 }
