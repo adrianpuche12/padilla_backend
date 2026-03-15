@@ -109,7 +109,7 @@ public class ContractService {
             );
         }
         firstPeriod.setAdjustmentIndex(java.math.BigDecimal.ZERO);
-        contractPeriodRepository.save(firstPeriod);
+        contractPeriodRepository.saveAndFlush(firstPeriod);
 
         // Actualizar el tenantId en la propiedad
         propertyService.assignTenant(saved.getPropertyId(), saved.getTenantId());
