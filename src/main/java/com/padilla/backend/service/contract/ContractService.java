@@ -1,9 +1,11 @@
 package com.padilla.backend.service.contract;
 
 import com.padilla.backend.entity.Contract;
+import com.padilla.backend.entity.ContractPeriod;
 import com.padilla.backend.enums.ContractStatus;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
+import com.padilla.backend.repository.ContractPeriodRepository;
 import com.padilla.backend.repository.ContractRepository;
 import com.padilla.backend.service.property.PropertyService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class ContractService {
 
     private final ContractRepository contractRepository;
+    private final ContractPeriodRepository contractPeriodRepository;
     private final PropertyService propertyService;
 
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
@@ -88,10 +91,39 @@ public class ContractService {
 
         Contract saved = contractRepository.save(contract);
 
+        // Guardar el primer período de indexación automáticamente
+        ContractPeriod firstPeriod = new ContractPeriod();
+        firstPeriod.setContractId(saved.getId());
+        firstPeriod.setPeriodFrom(saved.getStartDate());
+        firstPeriod.setRentAmount(saved.getMonthlyAmount());
+        if (saved.getCommissionPct() != null) {
+            firstPeriod.setCommissionAmount(
+                saved.getMonthlyAmount().multiply(saved.getCommissionPct())
+                    .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
+            );
+        }
+        if (saved.getAdminFeePct() != null) {
+            firstPeriod.setAdminFeeAmount(
+                saved.getMonthlyAmount().multiply(saved.getAdminFeePct())
+                    .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
+            );
+        }
+        firstPeriod.setAdjustmentIndex(java.math.BigDecimal.ZERO);
+        contractPeriodRepository.save(firstPeriod);
+
         // Actualizar el tenantId en la propiedad
         propertyService.assignTenant(saved.getPropertyId(), saved.getTenantId());
 
         return saved;
+    }
+
+    public List<ContractPeriod> findPeriodsByContractId(UUID contractId) {
+        Role callerRole = getCurrentUserRole();
+        Optional<Contract> contract = findById(contractId);
+        if (contract.isEmpty()) {
+            throw new RbacException("Contrato no encontrado o sin acceso");
+        }
+        return contractPeriodRepository.findByContractIdOrderByPeriodFromAsc(contractId);
     }
 
     @Transactional

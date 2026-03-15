@@ -1,9 +1,11 @@
 package com.padilla.backend.controller;
 
 import com.padilla.backend.dto.contract.ContractDTO;
+import com.padilla.backend.dto.contract.ContractPeriodDTO;
 import com.padilla.backend.dto.contract.CreateContractRequest;
 import com.padilla.backend.dto.contract.UpdateContractRequest;
 import com.padilla.backend.entity.Contract;
+import com.padilla.backend.entity.ContractPeriod;
 import com.padilla.backend.enums.ContractStatus;
 import com.padilla.backend.service.contract.ContractService;
 import jakarta.validation.Valid;
@@ -50,9 +52,17 @@ public class ContractController {
         contract.setTenantId(request.getTenantId());
         contract.setStartDate(request.getStartDate());
         contract.setEndDate(request.getEndDate());
+        contract.setSigningDate(request.getSigningDate());
         contract.setMonthlyAmount(request.getMonthlyAmount());
         contract.setCurrency(request.getCurrency() != null ? request.getCurrency() : "ARS");
         contract.setStatus(ContractStatus.ACTIVE);
+        contract.setContractType(request.getContractType());
+        contract.setCommissionPct(request.getCommissionPct());
+        contract.setAdminFeePct(request.getAdminFeePct());
+        contract.setCoOwner(request.getCoOwner());
+        contract.setCoTenant(request.getCoTenant());
+        contract.setNotes(request.getNotes());
+        contract.setProducer(request.getProducer());
 
         Contract created = contractService.create(contract);
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(created));
@@ -80,19 +90,48 @@ public class ContractController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/{id}/periods")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
+    public ResponseEntity<List<ContractPeriodDTO>> getContractPeriods(@PathVariable UUID id) {
+        List<ContractPeriod> periods = contractService.findPeriodsByContractId(id);
+        return ResponseEntity.ok(periods.stream().map(this::toPeriodDTO).collect(Collectors.toList()));
+    }
+
     private ContractDTO toDTO(Contract c) {
         return new ContractDTO(
                 c.getId(),
+                c.getLegacyId(),
                 c.getPropertyId(),
                 c.getOwnerId(),
                 c.getTenantId(),
                 c.getStartDate(),
                 c.getEndDate(),
+                c.getSigningDate(),
                 c.getMonthlyAmount(),
                 c.getCurrency(),
                 c.getStatus(),
+                c.getContractType(),
+                c.getCommissionPct(),
+                c.getAdminFeePct(),
+                c.getCoOwner(),
+                c.getCoTenant(),
+                c.getNotes(),
+                c.getProducer(),
                 c.isActive(),
                 c.getCreatedAt()
+        );
+    }
+
+    private ContractPeriodDTO toPeriodDTO(ContractPeriod p) {
+        return new ContractPeriodDTO(
+                p.getId(),
+                p.getContractId(),
+                p.getPeriodFrom(),
+                p.getRentAmount(),
+                p.getCommissionAmount(),
+                p.getAdminFeeAmount(),
+                p.getAdjustmentIndex(),
+                p.getCreatedAt()
         );
     }
 }
