@@ -90,6 +90,13 @@ public class PropertyController {
         return ResponseEntity.ok().build();
     }
 
+    @PatchMapping("/{id}/reactivate")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<Void> reactivateProperty(@PathVariable UUID id) {
+        propertyService.reactivate(id);
+        return ResponseEntity.ok().build();
+    }
+
     private PropertyDTO toDTO(Property p) {
         PropertyDTO dto = new PropertyDTO();
         dto.setId(p.getId());

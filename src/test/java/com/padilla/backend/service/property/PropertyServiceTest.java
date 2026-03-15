@@ -253,12 +253,12 @@ class PropertyServiceTest {
     }
 
     // ---------------------------------------------------------------
-    // SECCION 5: deactivate — efectos
+    // SECCION 5: deactivate / reactivate — efectos
     // ---------------------------------------------------------------
 
     @Nested
-    @DisplayName("deactivate — efectos sobre la propiedad")
-    class Deactivate {
+    @DisplayName("deactivate / reactivate — efectos sobre la propiedad")
+    class ActivacionDesactivacion {
 
         @Test
         @DisplayName("Al desactivar, la propiedad queda con active=false y status=MAINTENANCE")
@@ -274,6 +274,32 @@ class PropertyServiceTest {
             verify(propertyRepository).save(argThat(p ->
                     !p.isActive() && p.getStatus() == PropertyStatus.MAINTENANCE
             ));
+        }
+
+        @Test
+        @DisplayName("Al reactivar, la propiedad queda con active=true y status=AVAILABLE")
+        void reactivate_propiedadVuelveAEstarDisponible() {
+            mockCallerRole(Role.ADMIN);
+            Property existente = buildProperty();
+            existente.setActive(false);
+            existente.setStatus(PropertyStatus.MAINTENANCE);
+
+            when(propertyRepository.findById(existente.getId())).thenReturn(Optional.of(existente));
+            when(propertyRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            propertyService.reactivate(existente.getId());
+
+            verify(propertyRepository).save(argThat(p ->
+                    p.isActive() && p.getStatus() == PropertyStatus.AVAILABLE
+            ));
+        }
+
+        @ParameterizedTest(name = "{0} no puede reactivar una propiedad")
+        @EnumSource(value = Role.class, names = {"OWNER", "TENANT", "PROVIDER"})
+        @DisplayName("Roles no privilegiados no pueden reactivar propiedades")
+        void reactivate_rolesNoPrivilegiados_lanzaRbacException(Role role) {
+            mockCallerRole(role);
+            assertThrows(RbacException.class, () -> propertyService.reactivate(UUID.randomUUID()));
         }
 
         @Test

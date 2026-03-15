@@ -104,6 +104,16 @@ public class PropertyService {
         propertyRepository.save(property);
     }
 
+    @Transactional
+    public void reactivate(UUID id) {
+        validateIsAdmin();
+        Property property = propertyRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Property not found: " + id));
+        property.setActive(true);
+        property.setStatus(PropertyStatus.AVAILABLE);
+        propertyRepository.save(property);
+    }
+
     // --- Helpers internos (usados por ContractService) ---
 
     @Transactional
