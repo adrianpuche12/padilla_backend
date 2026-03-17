@@ -1,7 +1,7 @@
 package com.padilla.backend.service;
 
-import com.padilla.backend.entity.Source;
-import com.padilla.backend.repository.SourceRepository;
+import com.padilla.backend.entity.legacy.Source;
+import com.padilla.backend.repository.legacy.SourceRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

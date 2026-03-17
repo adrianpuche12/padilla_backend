@@ -1,6 +1,5 @@
-package com.padilla.backend.repository;
-
-import com.padilla.backend.entity.LeadFormularioDashboard;
+package com.padilla.backend.repository.legacy;
+import com.padilla.backend.entity.legacy.LeadFormularioDashboard;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

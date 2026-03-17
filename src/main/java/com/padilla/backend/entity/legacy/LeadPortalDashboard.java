@@ -1,5 +1,4 @@
-package com.padilla.backend.entity;
-
+package com.padilla.backend.entity.legacy;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,11 +8,11 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "lead_formulario_dashboard", schema = "padilla")
+@Table(name = "lead_portal_dashboard", schema = "padilla")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LeadFormularioDashboard {
+public class LeadPortalDashboard {
 
     @Id
     private Integer id;
@@ -27,29 +26,11 @@ public class LeadFormularioDashboard {
     @Column(name = "nombre")
     private String nombre;
 
-    @Column(name = "email")
-    private String email;
-
     @Column(name = "telefono")
     private String telefono;
 
-    @Column(name = "motivo")
-    private String motivo;
-
-    @Column(name = "descripcion")
-    private String descripcion;
-
     @Column(name = "link_property")
     private String linkProperty;
-
-    @Column(name = "link_form")
-    private String linkForm;
-
-    @Column(name = "send_form")
-    private Boolean sendForm;
-
-    @Column(name = "answered_form")
-    private Boolean answeredForm;
 
     @Column(name = "id_source")
     private Integer idSource;
@@ -62,12 +43,6 @@ public class LeadFormularioDashboard {
 
     @Column(name = "id_seller")
     private Integer idSeller;
-
-    @Column(name = "survey_sent")
-    private Boolean surveySent;
-
-    @Column(name = "survey_respond")
-    private Boolean surveyRespond;
 
     @Column(name = "date")
     private LocalDate date;

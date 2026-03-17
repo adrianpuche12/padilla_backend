@@ -20,12 +20,12 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/properties")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
 public class PropertyController {
 
     private final PropertyService propertyService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
     public ResponseEntity<List<PropertyDTO>> getProperties(
             @RequestParam(required = false) PropertyStatus status) {
         List<Property> properties = propertyService.findAll(status);
@@ -33,7 +33,6 @@ public class PropertyController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
     public ResponseEntity<PropertyDTO> getProperty(@PathVariable UUID id) {
         return propertyService.findById(id)
                 .map(p -> ResponseEntity.ok(toDTO(p)))

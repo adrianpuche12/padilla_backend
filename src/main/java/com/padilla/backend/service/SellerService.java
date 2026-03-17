@@ -1,8 +1,8 @@
 package com.padilla.backend.service;
 import com.padilla.backend.dto.SellerSummaryDTO;
 
-import com.padilla.backend.entity.Seller;
-import com.padilla.backend.repository.SellerRepository;
+import com.padilla.backend.entity.legacy.Seller;
+import com.padilla.backend.repository.legacy.SellerRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

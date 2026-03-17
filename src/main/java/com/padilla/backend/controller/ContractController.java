@@ -22,12 +22,12 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/contracts")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER','TENANT')")
 public class ContractController {
 
     private final ContractService contractService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
     public ResponseEntity<List<ContractDTO>> getContracts(
             @RequestParam(required = false) ContractStatus status,
             @RequestParam(required = false) UUID propertyId) {
@@ -36,7 +36,6 @@ public class ContractController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
     public ResponseEntity<ContractDTO> getContract(@PathVariable UUID id) {
         return contractService.findById(id)
                 .map(c -> ResponseEntity.ok(toDTO(c)))
