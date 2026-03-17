@@ -36,13 +36,16 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Endpoints publicos (sin autenticacion)
                 .requestMatchers("/health", "/actuator/**", "/test", "/api/auth/**").permitAll()
-                // Endpoints solo para ADMIN
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Endpoints para USER y ADMIN (protegidos a nivel de metodo con @PreAuthorize)
-                .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
-                .requestMatchers("/api/leads/**").hasAnyRole("USER", "ADMIN")
-                .requestMatchers("/api/sellers/**").hasAnyRole("USER", "ADMIN")
-                .requestMatchers("/api/sources/**").hasAnyRole("USER", "ADMIN")
+                // Endpoints solo para roles administrativos
+                .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
+                // Endpoints legacy de usuario
+                .requestMatchers("/api/user/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN", "OWNER", "TENANT", "PROVIDER")
+                // Módulo Clientes — SUPER_ADMIN, MANAGER y ADMIN pueden gestionar clientes
+                .requestMatchers("/api/clients/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
+                // Endpoints del dashboard — solo roles internos
+                .requestMatchers("/api/leads/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
+                .requestMatchers("/api/sellers/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
+                .requestMatchers("/api/sources/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
                 .requestMatchers("/api/tickets/**").authenticated()
                 // Todo lo demas requiere autenticacion
                 .anyRequest().authenticated()
