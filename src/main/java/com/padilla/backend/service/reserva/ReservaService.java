@@ -1,0 +1,223 @@
+package com.padilla.backend.service.reserva;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.padilla.backend.dto.reserva.CreateReservaRequest;
+import com.padilla.backend.entity.Reserva;
+import com.padilla.backend.entity.ReservaGarante;
+import com.padilla.backend.enums.Role;
+import com.padilla.backend.exception.RbacException;
+import com.padilla.backend.repository.ReservaGaranteRepository;
+import com.padilla.backend.repository.ReservaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+
+@Service
+@RequiredArgsConstructor
+public class ReservaService {
+
+    private final ReservaRepository reservaRepository;
+    private final ReservaGaranteRepository reservaGaranteRepository;
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${openai.api-key:}")
+    private String openaiApiKey;
+
+    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
+            Role.SUPER_ADMIN, 0,
+            Role.MANAGER,     1,
+            Role.ADMIN,       2,
+            Role.OWNER,       3,
+            Role.TENANT,      3,
+            Role.PROVIDER,    3
+    );
+
+    public List<Reserva> findAll(String status) {
+        Role callerRole = getCurrentUserRole();
+        if (isAdmin(callerRole)) {
+            if (status != null) return reservaRepository.findByStatusOrderByCreatedAtDesc(status);
+            return reservaRepository.findAllByOrderByCreatedAtDesc();
+        }
+        UUID callerId = getCurrentUserId();
+        return reservaRepository.findByOperadorIdOrderByCreatedAtDesc(callerId);
+    }
+
+    public Optional<Reserva> findById(UUID id) {
+        Role callerRole = getCurrentUserRole();
+        Optional<Reserva> reserva = reservaRepository.findById(id);
+        if (isAdmin(callerRole)) return reserva;
+        UUID callerId = getCurrentUserId();
+        return reserva.filter(r -> callerId.equals(r.getOperadorId()));
+    }
+
+    public List<ReservaGarante> findGarantes(UUID reservaId) {
+        findById(reservaId).orElseThrow(() -> new RuntimeException("Reserva not found or access denied: " + reservaId));
+        return reservaGaranteRepository.findByReservaId(reservaId);
+    }
+
+    @Transactional
+    public Reserva create(CreateReservaRequest req) {
+        Role callerRole = getCurrentUserRole();
+        if (!isAdmin(callerRole)) {
+            throw new RbacException("Only admin roles can create reservas");
+        }
+
+        Reserva reserva = new Reserva();
+        reserva.setNombre(req.getNombre());
+        reserva.setApellido(req.getApellido());
+        reserva.setApellidoMaterno(req.getApellidoMaterno());
+        reserva.setDni(req.getDni());
+        reserva.setCuil(req.getCuil());
+        reserva.setFechaNacimiento(req.getFechaNacimiento());
+        reserva.setDomicilioActual(req.getDomicilioActual());
+        reserva.setTelefono(req.getTelefono());
+        reserva.setEmail(req.getEmail());
+        reserva.setCondicionFiscal(req.getCondicionFiscal());
+        reserva.setProfesion(req.getProfesion());
+        reserva.setPropiedad(req.getPropiedad());
+        reserva.setPropertyId(req.getPropertyId());
+        reserva.setMonto(req.getMonto());
+        reserva.setMontoInformes(req.getMontoInformes());
+        reserva.setTipoGarantia(req.getTipoGarantia());
+        reserva.setOperadorId(getCurrentUserId());
+        reserva.setCantidadPersonas(req.getCantidadPersonas());
+        reserva.setTieneCoinquilino(req.getTieneCoinquilino() != null ? req.getTieneCoinquilino() : false);
+        reserva.setCoinquilinoNombre(req.getCoinquilinoNombre());
+        reserva.setStatus("PENDIENTE");
+
+        Reserva saved = reservaRepository.save(reserva);
+
+        if (req.getGarantes() != null) {
+            for (CreateReservaRequest.GaranteInput g : req.getGarantes()) {
+                ReservaGarante garante = new ReservaGarante();
+                garante.setReservaId(saved.getId());
+                garante.setNombre(g.getNombre());
+                garante.setDni(g.getDni());
+                garante.setCuil(g.getCuil());
+                garante.setDomicilio(g.getDomicilio());
+                garante.setDescripcionBien(g.getDescripcionBien());
+                reservaGaranteRepository.save(garante);
+            }
+        }
+
+        return saved;
+    }
+
+    @Transactional
+    public Reserva updateStatus(UUID id, String newStatus) {
+        validateIsAdmin();
+        Reserva reserva = reservaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Reserva not found: " + id));
+        reserva.setStatus(newStatus);
+        return reservaRepository.save(reserva);
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        validateIsAdmin();
+        reservaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Reserva not found: " + id));
+        reservaGaranteRepository.deleteByReservaId(id);
+        reservaRepository.deleteById(id);
+    }
+
+    /**
+     * Calls OpenAI Vision API to extract DNI data from a base64-encoded image.
+     * Returns a map of extracted fields: nombre, apellido, dni, cuil, fechaNacimiento, domicilio.
+     */
+    public Map<String, String> readDniWithAI(String base64Image, String mimeType) {
+        if (openaiApiKey == null || openaiApiKey.isBlank()) {
+            throw new RuntimeException("OpenAI API key not configured");
+        }
+
+        String prompt = """
+                Eres un asistente que extrae datos de DNIs argentinos.
+                Analiza la imagen del DNI y devuelve un JSON con exactamente estas claves:
+                nombre, apellido, dni, cuil, fecha_nacimiento (formato YYYY-MM-DD), domicilio.
+                Si no encuentras algún dato, usa null. Solo devuelve el JSON, sin texto adicional.
+                """;
+
+        Map<String, Object> imageUrl = Map.of(
+                "url", "data:" + mimeType + ";base64," + base64Image
+        );
+        Map<String, Object> imageContent = Map.of("type", "image_url", "image_url", imageUrl);
+        Map<String, Object> textContent = Map.of("type", "text", "text", prompt);
+
+        Map<String, Object> message = Map.of(
+                "role", "user",
+                "content", List.of(textContent, imageContent)
+        );
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", "gpt-4o");
+        body.put("max_tokens", 300);
+        body.put("messages", List.of(message));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(openaiApiKey);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/chat/completions",
+                    entity,
+                    String.class
+            );
+
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+
+            // Strip markdown code fences if present
+            content = content.replaceAll("(?s)```(?:json)?\\s*", "").replaceAll("```", "").trim();
+
+            JsonNode parsed = objectMapper.readTree(content);
+            Map<String, String> result = new LinkedHashMap<>();
+            parsed.fields().forEachRemaining(e -> result.put(e.getKey(), e.getValue().isNull() ? null : e.getValue().asText()));
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Error calling OpenAI Vision: " + e.getMessage(), e);
+        }
+    }
+
+    // --- RBAC helpers ---
+
+    private boolean isAdmin(Role role) {
+        return ROLE_LEVEL.get(role) <= ROLE_LEVEL.get(Role.ADMIN);
+    }
+
+    private void validateIsAdmin() {
+        if (!isAdmin(getCurrentUserRole())) {
+            throw new RbacException("Only admin roles can perform this action");
+        }
+    }
+
+    private Role getCurrentUserRole() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream()
+                .map(a -> a.getAuthority().replace("ROLE_", ""))
+                .filter(r -> { try { Role.valueOf(r); return true; } catch (Exception e) { return false; } })
+                .map(Role::valueOf)
+                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
+                .orElseThrow(() -> new RbacException("No valid role found in token"));
+    }
+
+    private UUID getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        try {
+            return UUID.fromString(auth.getName());
+        } catch (IllegalArgumentException e) {
+            throw new RbacException("Cannot resolve current user ID from token");
+        }
+    }
+}
