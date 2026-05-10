@@ -2,10 +2,12 @@ package com.padilla.backend.service.ticket;
 
 import com.padilla.backend.entity.Ticket;
 import com.padilla.backend.entity.TicketComment;
+import com.padilla.backend.entity.TicketProviderLog;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.enums.TicketStatus;
 import com.padilla.backend.exception.RbacException;
 import com.padilla.backend.repository.TicketCommentRepository;
+import com.padilla.backend.repository.TicketProviderLogRepository;
 import com.padilla.backend.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -25,6 +27,7 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final TicketCommentRepository ticketCommentRepository;
+    private final TicketProviderLogRepository ticketProviderLogRepository;
 
     private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
             Role.SUPER_ADMIN, 0,
@@ -138,9 +141,23 @@ public class TicketService {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
 
+        TicketProviderLog log = new TicketProviderLog();
+        log.setTicketId(ticketId);
+        log.setChangedBy(getCurrentUserId());
+        log.setOldProviderId(ticket.getProviderId());
+        log.setNewProviderId(providerId);
+        ticketProviderLogRepository.save(log);
+
         ticket.setProviderId(providerId);
         ticket.setStatus(TicketStatus.EN_PROCESO);
         return ticketRepository.save(ticket);
+    }
+
+    public List<TicketProviderLog> getProviderHistory(UUID ticketId) {
+        validateIsAdmin();
+        ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
+        return ticketProviderLogRepository.findByTicketIdOrderByChangedAtDesc(ticketId);
     }
 
     @Transactional
