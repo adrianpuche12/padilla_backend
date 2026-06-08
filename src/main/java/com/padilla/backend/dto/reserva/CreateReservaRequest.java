@@ -45,6 +45,19 @@ public class CreateReservaRequest {
     private Boolean tieneCoinquilino;
     private String coinquilinoNombre;
 
+    private String tipoInmueble;
+    private String asesor;
+    private LocalDate fechaRecibo;
+    private String medioPago;
+    private String observaciones;
+    private String apoderadoLocativa;
+
+    // Locador / propietario (feedback cliente 2026-06-08) — lo carga el operador
+    private String locadorNombre;
+    private String locadorApellido;
+    private String locadorDni;
+    private String locadorDomicilio;
+
     private List<GaranteInput> garantes;
 
     @Data
@@ -55,5 +68,7 @@ public class CreateReservaRequest {
         private String cuil;
         private String domicilio;
         private String descripcionBien;
+        private String apellidoMaterno;
+        private LocalDate fechaNacimiento;
     }
 }

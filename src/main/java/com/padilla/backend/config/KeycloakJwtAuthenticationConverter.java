@@ -21,7 +21,8 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
-        return new JwtAuthenticationToken(jwt, authorities, jwt.getClaimAsString("preferred_username"));
+        // Use the JWT subject (UUID) as the principal name so getCurrentUserId() can parse it
+        return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
     }
 
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {

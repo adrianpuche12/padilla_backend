@@ -36,6 +36,16 @@ public class ReservaDTO {
     private Integer cantidadPersonas;
     private Boolean tieneCoinquilino;
     private String coinquilinoNombre;
+    private String tipoInmueble;
+    private String asesor;
+    private LocalDate fechaRecibo;
+    private String medioPago;
+    private String observaciones;
+    private String apoderadoLocativa;
+    private String locadorNombre;
+    private String locadorApellido;
+    private String locadorDni;
+    private String locadorDomicilio;
     private OffsetDateTime createdAt;
     private List<ReservaGaranteDTO> garantes;
 }

@@ -88,7 +88,8 @@ public class ReservaController {
         List<ReservaGaranteDTO> garanteDTOs = garantes.stream()
                 .map(g -> new ReservaGaranteDTO(
                         g.getId(), g.getReservaId(), g.getNombre(),
-                        g.getDni(), g.getCuil(), g.getDomicilio(), g.getDescripcionBien()
+                        g.getDni(), g.getCuil(), g.getDomicilio(), g.getDescripcionBien(),
+                        g.getApellidoMaterno(), g.getFechaNacimiento()
                 ))
                 .collect(Collectors.toList());
 
@@ -115,6 +116,16 @@ public class ReservaController {
                 r.getCantidadPersonas(),
                 r.getTieneCoinquilino(),
                 r.getCoinquilinoNombre(),
+                r.getTipoInmueble(),
+                r.getAsesor(),
+                r.getFechaRecibo(),
+                r.getMedioPago(),
+                r.getObservaciones(),
+                r.getApoderadoLocativa(),
+                r.getLocadorNombre(),
+                r.getLocadorApellido(),
+                r.getLocadorDni(),
+                r.getLocadorDomicilio(),
                 r.getCreatedAt(),
                 garanteDTOs
         );

@@ -35,4 +35,10 @@ public class ReservaGarante {
 
     @Column(name = "descripcion_bien", columnDefinition = "TEXT")
     private String descripcionBien;
+
+    @Column(name = "apellido_materno", length = 150)
+    private String apellidoMaterno;
+
+    @Column(name = "fecha_nacimiento")
+    private java.time.LocalDate fechaNacimiento;
 }

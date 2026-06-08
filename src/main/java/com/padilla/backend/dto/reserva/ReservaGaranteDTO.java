@@ -17,4 +17,6 @@ public class ReservaGaranteDTO {
     private String cuil;
     private String domicilio;
     private String descripcionBien;
+    private String apellidoMaterno;
+    private java.time.LocalDate fechaNacimiento;
 }

@@ -92,6 +92,16 @@ public class ReservaService {
         reserva.setCantidadPersonas(req.getCantidadPersonas());
         reserva.setTieneCoinquilino(req.getTieneCoinquilino() != null ? req.getTieneCoinquilino() : false);
         reserva.setCoinquilinoNombre(req.getCoinquilinoNombre());
+        reserva.setTipoInmueble(req.getTipoInmueble());
+        reserva.setAsesor(req.getAsesor());
+        reserva.setFechaRecibo(req.getFechaRecibo());
+        reserva.setMedioPago(req.getMedioPago());
+        reserva.setObservaciones(req.getObservaciones());
+        reserva.setApoderadoLocativa(req.getApoderadoLocativa());
+        reserva.setLocadorNombre(req.getLocadorNombre());
+        reserva.setLocadorApellido(req.getLocadorApellido());
+        reserva.setLocadorDni(req.getLocadorDni());
+        reserva.setLocadorDomicilio(req.getLocadorDomicilio());
         reserva.setStatus("PENDIENTE");
 
         Reserva saved = reservaRepository.save(reserva);
@@ -105,6 +115,8 @@ public class ReservaService {
                 garante.setCuil(g.getCuil());
                 garante.setDomicilio(g.getDomicilio());
                 garante.setDescripcionBien(g.getDescripcionBien());
+                garante.setApellidoMaterno(g.getApellidoMaterno());
+                garante.setFechaNacimiento(g.getFechaNacimiento());
                 reservaGaranteRepository.save(garante);
             }
         }
