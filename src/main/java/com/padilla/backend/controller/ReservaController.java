@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.reserva.CreateReservaRequest;
 import com.padilla.backend.dto.reserva.ReservaDTO;
 import com.padilla.backend.dto.reserva.ReservaGaranteDTO;
@@ -41,7 +43,7 @@ public class ReservaController {
                     List<ReservaGarante> garantes = reservaService.findGarantes(id);
                     return ResponseEntity.ok(toDTO(r, garantes));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Reserva no encontrada"));
     }
 
     @PostMapping

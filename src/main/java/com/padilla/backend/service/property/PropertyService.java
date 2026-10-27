@@ -1,5 +1,7 @@
 package com.padilla.backend.service.property;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Property;
 import com.padilla.backend.enums.PropertyStatus;
@@ -76,7 +78,7 @@ public class PropertyService {
     public Property update(UUID id, String address, Double squareMeters, Integer rooms, PropertyStatus status) {
         validateIsAdmin();
         Property property = propertyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Property not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + id));
 
         if (address != null) property.setAddress(address);
         if (squareMeters != null) property.setSquareMeters(squareMeters);
@@ -90,7 +92,7 @@ public class PropertyService {
     public void deactivate(UUID id) {
         validateIsAdmin();
         Property property = propertyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Property not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + id));
         property.setActive(false);
         property.setStatus(PropertyStatus.MAINTENANCE);
         propertyRepository.save(property);
@@ -100,7 +102,7 @@ public class PropertyService {
     public void reactivate(UUID id) {
         validateIsAdmin();
         Property property = propertyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Property not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + id));
         property.setActive(true);
         property.setStatus(PropertyStatus.AVAILABLE);
         propertyRepository.save(property);
@@ -111,7 +113,7 @@ public class PropertyService {
     @Transactional
     public void assignTenant(UUID propertyId, UUID tenantId) {
         Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(() -> new RuntimeException("Property not found: " + propertyId));
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + propertyId));
         property.setTenantId(tenantId);
         property.setStatus(PropertyStatus.RENTED);
         propertyRepository.save(property);
@@ -120,7 +122,7 @@ public class PropertyService {
     @Transactional
     public void clearTenant(UUID propertyId) {
         Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(() -> new RuntimeException("Property not found: " + propertyId));
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + propertyId));
         property.setTenantId(null);
         property.setStatus(PropertyStatus.AVAILABLE);
         propertyRepository.save(property);

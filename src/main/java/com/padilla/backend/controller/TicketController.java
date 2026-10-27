@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.ticket.CreateTicketRequest;
 import com.padilla.backend.dto.ticket.TicketCommentDTO;
 import com.padilla.backend.dto.ticket.TicketDTO;
@@ -42,7 +44,7 @@ public class TicketController {
     public ResponseEntity<TicketDTO> getTicket(@PathVariable UUID id) {
         return ticketService.findById(id)
                 .map(t -> ResponseEntity.ok(toDTO(t)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado"));
     }
 
     @GetMapping("/{id}/comments")

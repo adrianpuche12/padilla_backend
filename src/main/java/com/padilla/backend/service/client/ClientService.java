@@ -1,5 +1,7 @@
 package com.padilla.backend.service.client;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.dto.client.ClientDTO;
 import com.padilla.backend.dto.client.CreateClientRequest;
@@ -141,7 +143,7 @@ public class ClientService {
     public ClientDTO updateClient(UUID id, UpdateClientRequest request) {
         User user = userRepository.findById(id)
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
+                .orElseThrow(() -> new NotFoundException("Cliente no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -178,7 +180,7 @@ public class ClientService {
     public void deactivateClient(UUID id) {
         User user = userRepository.findById(id)
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
+                .orElseThrow(() -> new NotFoundException("Cliente no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -192,7 +194,7 @@ public class ClientService {
     public void deleteClient(UUID id) {
         User user = userRepository.findById(id)
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
+                .orElseThrow(() -> new NotFoundException("Cliente no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -211,7 +213,7 @@ public class ClientService {
     public ClientDTO reactivateClient(UUID id) {
         User user = userRepository.findById(id)
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
+                .orElseThrow(() -> new NotFoundException("Cliente no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());

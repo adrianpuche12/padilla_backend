@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.property.CreatePropertyRequest;
 import com.padilla.backend.dto.property.PropertyDTO;
 import com.padilla.backend.dto.property.UpdatePropertyRequest;
@@ -36,7 +38,7 @@ public class PropertyController {
     public ResponseEntity<PropertyDTO> getProperty(@PathVariable UUID id) {
         return propertyService.findById(id)
                 .map(p -> ResponseEntity.ok(toDTO(p)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada"));
     }
 
     @PostMapping

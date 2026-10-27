@@ -1,5 +1,7 @@
 package com.padilla.backend.service.user;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.User;
 import com.padilla.backend.enums.Role;
@@ -76,7 +78,7 @@ public class UserService {
     @Transactional
     public User updateUser(UUID id, String name, String phone) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -89,7 +91,7 @@ public class UserService {
     @Transactional
     public void deactivateUser(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -148,7 +150,7 @@ public class UserService {
     @Transactional
     public User reactivateUser(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -162,7 +164,7 @@ public class UserService {
     @Transactional
     public String resetPassword(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
         String tempPassword = keycloakAdminService.resetPasswordByEmail(user.getEmail());
         user.setFirstLogin(true);
         user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
@@ -174,7 +176,7 @@ public class UserService {
     @Transactional
     public void resendAccess(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
@@ -189,7 +191,7 @@ public class UserService {
     @Transactional
     public void deleteUserPermanently(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());

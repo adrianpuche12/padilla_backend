@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.client.ClientDTO;
 import com.padilla.backend.dto.client.CreateClientRequest;
 import com.padilla.backend.dto.client.UpdateClientRequest;
@@ -39,7 +41,7 @@ public class ClientController {
     public ResponseEntity<ClientDTO> getClient(@PathVariable UUID id) {
         return clientService.findById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Cliente no encontrado"));
     }
 
     @PostMapping
@@ -79,14 +81,5 @@ public class ClientController {
         return ResponseEntity.ok(reactivated);
     }
 
-    @ExceptionHandler(RbacException.class)
-    public ResponseEntity<Map<String, String>> handleRbac(RbacException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("message", ex.getMessage()));
-    }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
-    }
 }

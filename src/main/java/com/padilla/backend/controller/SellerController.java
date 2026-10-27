@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.SellerSummaryDTO;
 import com.padilla.backend.entity.legacy.Seller;
 import com.padilla.backend.service.LeadService;
@@ -32,7 +34,7 @@ public class SellerController {
     public ResponseEntity<Seller> getSellerById(@PathVariable Integer id) {
         return sellerService.findById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Vendedor no encontrado"));
     }
 
     @GetMapping("/{id}/stats")
@@ -44,7 +46,7 @@ public class SellerController {
                     response.put("stats", leadService.getSellerStatistics(id));
                     return ResponseEntity.ok(response);
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Vendedor no encontrado"));
     }
 
     @GetMapping("/count")
