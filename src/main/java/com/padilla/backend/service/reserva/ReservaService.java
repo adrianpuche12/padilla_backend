@@ -1,5 +1,6 @@
 package com.padilla.backend.service.reserva;
 
+import com.padilla.backend.security.CurrentUser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.padilla.backend.dto.reserva.CreateReservaRequest;
@@ -32,30 +33,21 @@ public class ReservaService {
     @Value("${openai.api-key:}")
     private String openaiApiKey;
 
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
-
     public List<Reserva> findAll(String status) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (isAdmin(callerRole)) {
             if (status != null) return reservaRepository.findByStatusOrderByCreatedAtDesc(status);
             return reservaRepository.findAllByOrderByCreatedAtDesc();
         }
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
         return reservaRepository.findByOperadorIdOrderByCreatedAtDesc(callerId);
     }
 
     public Optional<Reserva> findById(UUID id) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         Optional<Reserva> reserva = reservaRepository.findById(id);
         if (isAdmin(callerRole)) return reserva;
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
         return reserva.filter(r -> callerId.equals(r.getOperadorId()));
     }
 
@@ -66,7 +58,7 @@ public class ReservaService {
 
     @Transactional
     public Reserva create(CreateReservaRequest req) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (!isAdmin(callerRole)) {
             throw new RbacException("Only admin roles can create reservas");
         }
@@ -88,7 +80,7 @@ public class ReservaService {
         reserva.setMonto(req.getMonto());
         reserva.setMontoInformes(req.getMontoInformes());
         reserva.setTipoGarantia(req.getTipoGarantia());
-        reserva.setOperadorId(getCurrentUserId());
+        reserva.setOperadorId(CurrentUser.id());
         reserva.setCantidadPersonas(req.getCantidadPersonas());
         reserva.setTieneCoinquilino(req.getTieneCoinquilino() != null ? req.getTieneCoinquilino() : false);
         reserva.setCoinquilinoNombre(req.getCoinquilinoNombre());
@@ -205,31 +197,14 @@ public class ReservaService {
     // --- RBAC helpers ---
 
     private boolean isAdmin(Role role) {
-        return ROLE_LEVEL.get(role) <= ROLE_LEVEL.get(Role.ADMIN);
+        return role.level() <= Role.ADMIN.level();
     }
 
     private void validateIsAdmin() {
-        if (!isAdmin(getCurrentUserRole())) {
+        if (!isAdmin(CurrentUser.role())) {
             throw new RbacException("Only admin roles can perform this action");
         }
     }
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> { try { Role.valueOf(r); return true; } catch (Exception e) { return false; } })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
-    private UUID getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        try {
-            return UUID.fromString(auth.getName());
-        } catch (IllegalArgumentException e) {
-            throw new RbacException("Cannot resolve current user ID from token");
-        }
-    }
 }

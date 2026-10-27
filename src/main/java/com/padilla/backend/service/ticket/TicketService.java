@@ -1,5 +1,6 @@
 package com.padilla.backend.service.ticket;
 
+import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Ticket;
 import com.padilla.backend.entity.TicketComment;
 import com.padilla.backend.entity.TicketProviderLog;
@@ -29,26 +30,17 @@ public class TicketService {
     private final TicketCommentRepository ticketCommentRepository;
     private final TicketProviderLogRepository ticketProviderLogRepository;
 
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
-
     // --- Consultas ---
 
     public List<Ticket> findAll(TicketStatus status) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
 
         if (isAdmin(callerRole)) {
             if (status != null) return ticketRepository.findByStatusOrderByCreatedAtDesc(status);
             return ticketRepository.findAllByOrderByCreatedAtDesc();
         }
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         if (callerRole == Role.TENANT) {
             if (status != null) return ticketRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(callerId, status);
@@ -67,12 +59,12 @@ public class TicketService {
     }
 
     public Optional<Ticket> findById(UUID id) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         Optional<Ticket> ticket = ticketRepository.findById(id);
 
         if (isAdmin(callerRole)) return ticket;
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         return ticket.filter(t -> {
             if (callerRole == Role.TENANT)   return callerId.equals(t.getTenantId());
@@ -85,7 +77,7 @@ public class TicketService {
     public List<TicketComment> findComments(UUID ticketId) {
         findById(ticketId).orElseThrow(() -> new RuntimeException("Ticket not found or access denied: " + ticketId));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (isAdmin(callerRole) || callerRole == Role.PROVIDER) {
             return ticketCommentRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
         }
@@ -96,13 +88,13 @@ public class TicketService {
 
     @Transactional
     public Ticket create(Ticket ticket) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (callerRole != Role.TENANT && !isAdmin(callerRole)) {
             throw new RbacException("Only TENANT can open tickets");
         }
 
         if (callerRole == Role.TENANT) {
-            ticket.setTenantId(getCurrentUserId());
+            ticket.setTenantId(CurrentUser.id());
         }
 
         ticket.setStatus(TicketStatus.ABIERTA);
@@ -111,8 +103,8 @@ public class TicketService {
 
     @Transactional
     public Ticket updateStatus(UUID id, TicketStatus newStatus) {
-        Role callerRole = getCurrentUserRole();
-        UUID callerId = getCurrentUserId();
+        Role callerRole = CurrentUser.role();
+        UUID callerId = CurrentUser.id();
 
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket not found: " + id));
@@ -143,7 +135,7 @@ public class TicketService {
 
         TicketProviderLog log = new TicketProviderLog();
         log.setTicketId(ticketId);
-        log.setChangedBy(getCurrentUserId());
+        log.setChangedBy(CurrentUser.id());
         log.setOldProviderId(ticket.getProviderId());
         log.setNewProviderId(providerId);
         ticketProviderLogRepository.save(log);
@@ -174,7 +166,7 @@ public class TicketService {
 
     @Transactional
     public TicketComment addComment(UUID ticketId, String content, boolean internal) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
 
         findById(ticketId).orElseThrow(() -> new RuntimeException("Ticket not found or access denied: " + ticketId));
 
@@ -187,7 +179,7 @@ public class TicketService {
 
         TicketComment comment = new TicketComment();
         comment.setTicketId(ticketId);
-        comment.setAuthorId(getCurrentUserId());
+        comment.setAuthorId(CurrentUser.id());
         comment.setContent(content);
         comment.setInternal(internal);
         return ticketCommentRepository.save(comment);
@@ -196,35 +188,15 @@ public class TicketService {
     // --- RBAC helpers ---
 
     private boolean isAdmin(Role role) {
-        return ROLE_LEVEL.get(role) <= ROLE_LEVEL.get(Role.ADMIN);
+        return role.level() <= Role.ADMIN.level();
     }
 
     private void validateIsAdmin() {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (!isAdmin(callerRole)) {
             throw new RbacException("Role " + callerRole + " cannot perform this action");
         }
     }
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> {
-                    try { Role.valueOf(r); return true; } catch (Exception e) { return false; }
-                })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
-    private UUID getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String name = auth.getName();
-        try {
-            return UUID.fromString(name);
-        } catch (IllegalArgumentException e) {
-            throw new RbacException("Cannot resolve current user ID from token");
-        }
-    }
 }
