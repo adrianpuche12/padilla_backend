@@ -1,5 +1,6 @@
 package com.padilla.backend.service.property;
 
+import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Property;
 import com.padilla.backend.enums.PropertyStatus;
 import com.padilla.backend.enums.Role;
@@ -22,19 +23,10 @@ public class PropertyService {
 
     private final PropertyRepository propertyRepository;
 
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
-
     // --- Consultas ---
 
     public List<Property> findAll(PropertyStatus status) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
 
         if (isAdmin(callerRole)) {
             return (status != null)
@@ -42,7 +34,7 @@ public class PropertyService {
                     : propertyRepository.findAll();
         }
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         if (callerRole == Role.OWNER) {
             return propertyRepository.findByOwnerIdAndActive(callerId, true);
@@ -56,14 +48,14 @@ public class PropertyService {
     }
 
     public Optional<Property> findById(UUID id) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         Optional<Property> property = propertyRepository.findById(id);
 
         if (isAdmin(callerRole)) {
             return property;
         }
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         return property.filter(p -> {
             if (callerRole == Role.OWNER) return callerId.equals(p.getOwnerId());
@@ -137,35 +129,15 @@ public class PropertyService {
     // --- RBAC helpers ---
 
     private boolean isAdmin(Role role) {
-        return ROLE_LEVEL.get(role) <= ROLE_LEVEL.get(Role.ADMIN);
+        return role.level() <= Role.ADMIN.level();
     }
 
     private void validateIsAdmin() {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (!isAdmin(callerRole)) {
             throw new RbacException("Role " + callerRole + " cannot modify properties");
         }
     }
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> {
-                    try { Role.valueOf(r); return true; } catch (Exception e) { return false; }
-                })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
-    private UUID getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String name = auth.getName();
-        try {
-            return UUID.fromString(name);
-        } catch (IllegalArgumentException e) {
-            throw new RbacException("Cannot resolve current user ID from token");
-        }
-    }
 }

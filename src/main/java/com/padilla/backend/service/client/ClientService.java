@@ -1,5 +1,6 @@
 package com.padilla.backend.service.client;
 
+import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.dto.client.ClientDTO;
 import com.padilla.backend.dto.client.CreateClientRequest;
 import com.padilla.backend.dto.client.UpdateClientRequest;
@@ -42,15 +43,6 @@ public class ClientService {
 
     private static final Set<Role> CLIENT_ROLES = Set.of(Role.OWNER, Role.TENANT, Role.PROVIDER);
 
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
-
     public List<ClientDTO> findAll() {
         return userRepository.findByRoleIn(List.of(Role.OWNER, Role.TENANT, Role.PROVIDER))
                 .stream()
@@ -73,7 +65,7 @@ public class ClientService {
 
     @Transactional
     public ClientDTO createClient(CreateClientRequest request) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
 
         // Solo se permiten roles de cliente en este endpoint
         if (!CLIENT_ROLES.contains(request.getRole())) {
@@ -151,7 +143,7 @@ public class ClientService {
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         // Actualizar datos básicos en users
@@ -188,7 +180,7 @@ public class ClientService {
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         user.setActive(false);
@@ -202,7 +194,7 @@ public class ClientService {
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         // 1. Eliminar perfil extendido
@@ -221,7 +213,7 @@ public class ClientService {
                 .filter(u -> CLIENT_ROLES.contains(u.getRole()))
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         user.setActive(true);
@@ -261,21 +253,10 @@ public class ClientService {
         );
     }
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> {
-                    try { Role.valueOf(r); return true; } catch (Exception e) { return false; }
-                })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
     private void validateCanManage(Role caller, Role target) {
-        int callerLevel = ROLE_LEVEL.get(caller);
-        int targetLevel = ROLE_LEVEL.get(target);
+        int callerLevel = caller.level();
+        int targetLevel = target.level();
         if (callerLevel >= targetLevel) {
             throw new RbacException("El rol " + caller + " no puede gestionar el rol " + target);
         }

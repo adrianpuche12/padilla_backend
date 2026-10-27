@@ -1,5 +1,6 @@
 package com.padilla.backend.service.contract;
 
+import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Contract;
 import com.padilla.backend.entity.ContractPeriod;
 import com.padilla.backend.enums.ContractStatus;
@@ -27,19 +28,10 @@ public class ContractService {
     private final ContractPeriodRepository contractPeriodRepository;
     private final PropertyService propertyService;
 
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
-
     // --- Consultas ---
 
     public List<Contract> findAll(ContractStatus status, UUID propertyId) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
 
         if (isAdmin(callerRole)) {
             if (propertyId != null) return contractRepository.findByPropertyId(propertyId);
@@ -47,7 +39,7 @@ public class ContractService {
             return contractRepository.findAll();
         }
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         if (callerRole == Role.OWNER) {
             return contractRepository.findByOwnerIdAndActive(callerId, true);
@@ -61,12 +53,12 @@ public class ContractService {
     }
 
     public Optional<Contract> findById(UUID id) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         Optional<Contract> contract = contractRepository.findById(id);
 
         if (isAdmin(callerRole)) return contract;
 
-        UUID callerId = getCurrentUserId();
+        UUID callerId = CurrentUser.id();
 
         return contract.filter(c -> {
             if (callerRole == Role.OWNER) return callerId.equals(c.getOwnerId());
@@ -118,7 +110,7 @@ public class ContractService {
     }
 
     public List<ContractPeriod> findPeriodsByContractId(UUID contractId) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         Optional<Contract> contract = findById(contractId);
         if (contract.isEmpty()) {
             throw new RbacException("Contrato no encontrado o sin acceso");
@@ -156,35 +148,15 @@ public class ContractService {
     // --- RBAC helpers ---
 
     private boolean isAdmin(Role role) {
-        return ROLE_LEVEL.get(role) <= ROLE_LEVEL.get(Role.ADMIN);
+        return role.level() <= Role.ADMIN.level();
     }
 
     private void validateIsAdmin() {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         if (!isAdmin(callerRole)) {
             throw new RbacException("Role " + callerRole + " cannot modify contracts");
         }
     }
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> {
-                    try { Role.valueOf(r); return true; } catch (Exception e) { return false; }
-                })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
-    private UUID getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String name = auth.getName();
-        try {
-            return UUID.fromString(name);
-        } catch (IllegalArgumentException e) {
-            throw new RbacException("Cannot resolve current user ID from token");
-        }
-    }
 }

@@ -1,5 +1,6 @@
 package com.padilla.backend.service.user;
 
+import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.User;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.exception.RbacException;
@@ -33,28 +34,19 @@ public class UserService {
     @Value("${app.db.schema}")
     private String schema;
 
-    // Jerarquia de roles: menor numero = mayor privilegio
-    private static final Map<Role, Integer> ROLE_LEVEL = Map.of(
-            Role.SUPER_ADMIN, 0,
-            Role.MANAGER,     1,
-            Role.ADMIN,       2,
-            Role.OWNER,       3,
-            Role.TENANT,      3,
-            Role.PROVIDER,    3
-    );
 
     public List<User> findAll() {
-        Role callerRole = getCurrentUserRole();
-        int callerLevel = ROLE_LEVEL.get(callerRole);
+        Role callerRole = CurrentUser.role();
+        int callerLevel = callerRole.level();
         return userRepository.findAll().stream()
-                .filter(u -> ROLE_LEVEL.getOrDefault(u.getRole(), 99) > callerLevel)
+                .filter(u -> u.getRole().level() > callerLevel)
                 .collect(Collectors.toList());
     }
 
     public List<User> findByRole(Role role) {
-        Role callerRole = getCurrentUserRole();
-        int callerLevel = ROLE_LEVEL.get(callerRole);
-        int targetLevel = ROLE_LEVEL.getOrDefault(role, 99);
+        Role callerRole = CurrentUser.role();
+        int callerLevel = callerRole.level();
+        int targetLevel = role.level();
         if (targetLevel <= callerLevel) {
             return List.of();
         }
@@ -62,15 +54,15 @@ public class UserService {
     }
 
     public Optional<User> findById(UUID id) {
-        Role callerRole = getCurrentUserRole();
-        int callerLevel = ROLE_LEVEL.get(callerRole);
+        Role callerRole = CurrentUser.role();
+        int callerLevel = callerRole.level();
         return userRepository.findById(id)
-                .filter(u -> ROLE_LEVEL.getOrDefault(u.getRole(), 99) > callerLevel);
+                .filter(u -> u.getRole().level() > callerLevel);
     }
 
     @Transactional
     public User createUser(User user) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
         // Crear en Keycloak primero para obtener su UUID y usarlo como ID en DB.
         // Esto garantiza que DB ID == Keycloak sub, necesario para que RBAC funcione.
@@ -86,7 +78,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         user.setName(name);
@@ -99,7 +91,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
         validateNotSelf(user.getEmail());
 
@@ -110,7 +102,7 @@ public class UserService {
 
     @Transactional
     public CreateUserResult createUserFull(User user) {
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
@@ -158,7 +150,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         user.setActive(true);
@@ -184,7 +176,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
 
         String tempPassword = keycloakAdminService.resetPasswordByEmail(user.getEmail());
@@ -199,7 +191,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found: " + id));
 
-        Role callerRole = getCurrentUserRole();
+        Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
         validateNotSelf(user.getEmail());
 
@@ -217,21 +209,10 @@ public class UserService {
 
     // --- RBAC helpers ---
 
-    private Role getCurrentUserRole() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth.getAuthorities().stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(r -> {
-                    try { Role.valueOf(r); return true; } catch (Exception e) { return false; }
-                })
-                .map(Role::valueOf)
-                .min((a, b) -> ROLE_LEVEL.get(a) - ROLE_LEVEL.get(b))
-                .orElseThrow(() -> new RbacException("No valid role found in token"));
-    }
 
     private void validateCanManage(Role caller, Role target) {
-        int callerLevel = ROLE_LEVEL.get(caller);
-        int targetLevel = ROLE_LEVEL.get(target);
+        int callerLevel = caller.level();
+        int targetLevel = target.level();
         if (callerLevel >= targetLevel) {
             throw new RbacException(
                     "Role " + caller + " cannot manage role " + target
