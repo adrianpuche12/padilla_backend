@@ -1,6 +1,8 @@
 package com.padilla.backend.service.reserva;
 
 
+import com.padilla.backend.enums.ReservaStatus;
+import com.padilla.backend.exception.ConflictException;
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,7 +40,7 @@ public class ReservaService {
     public List<Reserva> findAll(String status) {
         Role callerRole = CurrentUser.role();
         if (isAdmin(callerRole)) {
-            if (status != null) return reservaRepository.findByStatusOrderByCreatedAtDesc(status);
+            if (status != null) return reservaRepository.findByStatusOrderByCreatedAtDesc(ReservaStatus.parse(status).name());
             return reservaRepository.findAllByOrderByCreatedAtDesc();
         }
         UUID callerId = CurrentUser.id();
@@ -96,7 +98,7 @@ public class ReservaService {
         reserva.setLocadorApellido(req.getLocadorApellido());
         reserva.setLocadorDni(req.getLocadorDni());
         reserva.setLocadorDomicilio(req.getLocadorDomicilio());
-        reserva.setStatus("PENDIENTE");
+        reserva.setStatus(ReservaStatus.PENDIENTE.name());
 
         Reserva saved = reservaRepository.save(reserva);
 
@@ -119,11 +121,21 @@ public class ReservaService {
     }
 
     @Transactional
+    /** PRO-014: estado validado contra ReservaStatus y sus transiciones (antes texto libre). */
     public Reserva updateStatus(UUID id, String newStatus) {
         validateIsAdmin();
+        ReservaStatus target = ReservaStatus.parse(newStatus);
         Reserva reserva = reservaRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Reserva no encontrada: " + id));
-        reserva.setStatus(newStatus);
+        ReservaStatus current = ReservaStatus.parse(reserva.getStatus());
+        if (current == target) {
+            return reserva;
+        }
+        if (!current.canTransitionTo(target)) {
+            throw new ConflictException("No se puede pasar una reserva de " + current + " a " + target
+                    + ". Estados posibles: " + current.nextStates());
+        }
+        reserva.setStatus(target.name());
         return reservaRepository.save(reserva);
     }
 
