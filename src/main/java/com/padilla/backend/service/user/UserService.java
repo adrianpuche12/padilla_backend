@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,6 +44,24 @@ public class UserService {
         return userRepository.findAll().stream()
                 .filter(u -> u.getRole().level() > callerLevel)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * PRO-013: usuarios de sistema (SUPER_ADMIN, MANAGER, ADMIN) para la pantalla Usuarios.
+     * Se listan todos los de la inmobiliaria (incluidos pares y superiores, en solo lectura);
+     * canManage(...) dice sobre cuales puede actuar quien consulta. Antes findAll() devolvia solo
+     * roles estrictamente inferiores y el frontend se quedaba con los de sistema: un ADMIN veia la lista vacia.
+     */
+    public List<User> findSystemUsers() {
+        CurrentUser.requireManagement();
+        return userRepository.findByRoleIn(List.of(Role.SUPER_ADMIN, Role.MANAGER, Role.ADMIN)).stream()
+                .sorted(Comparator.comparingInt((User u) -> u.getRole().level()).thenComparing(User::getName))
+                .toList();
+    }
+
+    /** PRO-013: quien consulta puede gestionar a este usuario (cascada y no a si mismo). */
+    public boolean canManage(User target) {
+        return CurrentUser.role().canManage(target.getRole()) && !CurrentUser.id().equals(target.getId());
     }
 
     public List<User> findByRole(Role role) {
@@ -95,7 +114,7 @@ public class UserService {
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
-        validateNotSelf(user.getEmail());
+        validateNotSelf(user.getId());
 
         user.setActive(false);
         userRepository.save(user);
@@ -117,10 +136,7 @@ public class UserService {
         // JdbcTemplate INSERT para evitar conflicto de ciclo de vida JPA:
         // @GeneratedValue hace que Hibernate trate cualquier entidad con ID != null
         // como "detached", tanto merge() como persist() fallan. JDBC lo evita completamente.
-        UUID createdBy = null;
-        try {
-            createdBy = UUID.fromString(SecurityContextHolder.getContext().getAuthentication().getName());
-        } catch (IllegalArgumentException ignored) {}
+        UUID createdBy = CurrentUser.id();
 
         jdbcTemplate.update(
                 "INSERT INTO " + schema + ".users (id, name, email, phone, role, active, created_by, created_at, first_login, password_reset_expires_at) " +
@@ -165,6 +181,9 @@ public class UserService {
     public String resetPassword(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + id));
+        // PRO-016: antes no se validaba la cascada (un SUPER_ADMIN podia resetear a otro SUPER_ADMIN)
+        validateCanManage(CurrentUser.role(), user.getRole());
+        validateNotSelf(user.getId());
         String tempPassword = keycloakAdminService.resetPasswordByEmail(user.getEmail());
         user.setFirstLogin(true);
         user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
@@ -195,7 +214,7 @@ public class UserService {
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
-        validateNotSelf(user.getEmail());
+        validateNotSelf(user.getId());
 
         // Se elimina primero de la DB (dentro de la transaccion).
         // Si la llamada a Keycloak falla despues, Spring hace rollback
@@ -216,17 +235,17 @@ public class UserService {
         int callerLevel = caller.level();
         int targetLevel = target.level();
         if (callerLevel >= targetLevel) {
-            throw new RbacException(
-                    "Role " + caller + " cannot manage role " + target
-            );
+            throw new RbacException("El rol " + caller + " no puede gestionar usuarios con rol " + target);
         }
     }
 
-    private void validateNotSelf(String targetEmail) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String callerUsername = auth.getName();
-        if (callerUsername.equalsIgnoreCase(targetEmail)) {
-            throw new RbacException("You cannot deactivate your own account");
+    /**
+     * PRO-016: compara por id (sub del JWT). Antes comparaba el sub con el email, nunca coincidia
+     * y un administrador podia desactivarse o borrarse a si mismo.
+     */
+    private void validateNotSelf(UUID targetId) {
+        if (CurrentUser.id().equals(targetId)) {
+            throw new RbacException("No podes desactivar, eliminar ni resetear tu propia cuenta");
         }
     }
 }

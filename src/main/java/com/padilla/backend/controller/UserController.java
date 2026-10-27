@@ -36,7 +36,7 @@ public class UserController {
     // -------------------------------------------------------
 
     @GetMapping("/api/user/profile")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT', 'PROVIDER')")
     public ResponseEntity<Map<String, Object>> getProfile(@AuthenticationPrincipal Jwt jwt) {
         Map<String, Object> profile = new HashMap<>();
         profile.put("username", jwt.getClaimAsString("preferred_username"));
@@ -46,7 +46,7 @@ public class UserController {
     }
 
     @GetMapping("/api/user/dashboard")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT', 'PROVIDER')")
     public ResponseEntity<Map<String, Object>> getDashboard(@AuthenticationPrincipal Jwt jwt) {
         Map<String, Object> dashboard = new HashMap<>();
         dashboard.put("message", "Bienvenido al dashboard");
@@ -76,7 +76,19 @@ public class UserController {
     @GetMapping("/api/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
     public ResponseEntity<List<UserDTO>> getUsers(
-            @RequestParam(required = false) Role role) {
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) String scope) {
+
+        // PRO-013: ?scope=system = usuarios de sistema con canManage por fila (pantalla Usuarios)
+        if ("system".equalsIgnoreCase(scope)) {
+            return ResponseEntity.ok(userService.findSystemUsers().stream()
+                    .map(u -> {
+                        UserDTO dto = toDTO(u);
+                        dto.setCanManage(userService.canManage(u));
+                        return dto;
+                    })
+                    .collect(Collectors.toList()));
+        }
 
         List<User> users = (role != null)
                 ? userService.findByRole(role)
@@ -164,7 +176,8 @@ public class UserController {
                 user.getCreatedBy(),
                 user.getCreatedAt(),
                 user.isFirstLogin(),
-                user.getPasswordResetExpiresAt()
+                user.getPasswordResetExpiresAt(),
+                null
         );
     }
 }
