@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "lead_portal_dashboard", schema = "padilla")
+@Table(name = "lead_portal_dashboard")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

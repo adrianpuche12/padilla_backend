@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "lead_formulario_dashboard", schema = "padilla")
+@Table(name = "lead_formulario_dashboard")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -37,7 +37,7 @@ public class ClientService {
     private final JdbcTemplate jdbcTemplate;
     private final EmailService emailService;
 
-    @Value("${spring.jpa.properties.hibernate.default_schema:padilla_dev}")
+    @Value("${app.db.schema}")
     private String schema;
 
     private static final Set<Role> CLIENT_ROLES = Set.of(Role.OWNER, Role.TENANT, Role.PROVIDER);

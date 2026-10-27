@@ -3,6 +3,10 @@ package com.padilla.backend.config;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
+import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypesScanner;
 import
         org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -20,6 +24,7 @@ import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Properties;
 
 @Configuration
@@ -70,14 +75,24 @@ public class DataSourceConfig {
                 .build();
     }
 
+    /**
+     * PRO-002: el schema, el ddl-auto y show-sql salen del profile activo
+     * (app.db.schema, spring.jpa.hibernate.ddl-auto, spring.jpa.show-sql).
+     * Las entidades de com.padilla.backend.entity.legacy se excluyen: pertenecen
+     * a la base legacy (LegacyDataSourceConfig).
+     */
     @Bean
     @Primary
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(
-            DataSource dataSource) {
+            DataSource dataSource,
+            ResourceLoader resourceLoader,
+            @Value("${app.db.schema}") String schema,
+            @Value("${spring.jpa.hibernate.ddl-auto:none}") String ddlAuto,
+            @Value("${spring.jpa.show-sql:false}") boolean showSql) {
         LocalContainerEntityManagerFactoryBean em = new
                 LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
-        em.setPackagesToScan("com.padilla.backend.entity");
+        em.setManagedTypes(mainManagedTypes(resourceLoader));
 
         HibernateJpaVendorAdapter vendorAdapter = new
                 HibernateJpaVendorAdapter();
@@ -86,12 +101,24 @@ public class DataSourceConfig {
         Properties jpaProperties = new Properties();
         jpaProperties.put("hibernate.dialect",
                 "org.hibernate.dialect.PostgreSQLDialect");
-        jpaProperties.put("hibernate.hbm2ddl.auto", "none");
-        jpaProperties.put("hibernate.show_sql", "true");
+        jpaProperties.put("hibernate.default_schema", schema);
+        jpaProperties.put("hibernate.hbm2ddl.auto", ddlAuto);
+        jpaProperties.put("hibernate.show_sql", String.valueOf(showSql));
         em.setJpaProperties(jpaProperties);
 
         return em;
     }
+
+    static PersistenceManagedTypes mainManagedTypes(ResourceLoader resourceLoader) {
+        PersistenceManagedTypes scanned = new PersistenceManagedTypesScanner(resourceLoader)
+                .scan("com.padilla.backend.entity");
+        List<String> classes = scanned.getManagedClassNames().stream()
+                .filter(name -> !name.startsWith(LEGACY_PACKAGE))
+                .toList();
+        return PersistenceManagedTypes.of(classes, scanned.getManagedPackages());
+    }
+
+    private static final String LEGACY_PACKAGE = "com.padilla.backend.entity.legacy.";
 
     @Bean
     @Primary
