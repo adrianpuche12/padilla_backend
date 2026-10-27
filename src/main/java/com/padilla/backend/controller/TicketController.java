@@ -48,7 +48,7 @@ public class TicketController {
     }
 
     @GetMapping("/{id}/comments")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'TENANT', 'PROVIDER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT', 'PROVIDER')")
     public ResponseEntity<List<TicketCommentDTO>> getComments(@PathVariable UUID id) {
         List<TicketComment> comments = ticketService.findComments(id);
         return ResponseEntity.ok(comments.stream().map(this::toCommentDTO).collect(Collectors.toList()));
@@ -64,16 +64,16 @@ public class TicketController {
         ticket.setPriority(request.getPriority() != null ? request.getPriority() : TicketPriority.NORMAL);
         ticket.setPropertyId(request.getPropertyId());
 
-        Ticket created = ticketService.create(ticket);
+        Ticket created = ticketService.create(ticket, request.getTenantId());
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(created));
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'PROVIDER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'TENANT', 'PROVIDER')")
     public ResponseEntity<TicketDTO> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTicketRequest request) {
-        Ticket updated = ticketService.updateStatus(id, request.getStatus());
+        Ticket updated = ticketService.updateStatus(id, request.getStatus(), request.getRejectionReason());
         return ResponseEntity.ok(toDTO(updated));
     }
 

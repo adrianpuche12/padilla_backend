@@ -12,6 +12,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * La base legacy apunta al mismo contenedor (schema legacy_test).
  */
 @SpringBootTest
+@org.springframework.context.annotation.Import(TestData.class)
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
