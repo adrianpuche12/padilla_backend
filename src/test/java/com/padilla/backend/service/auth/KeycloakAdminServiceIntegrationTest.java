@@ -2,6 +2,7 @@ package com.padilla.backend.service.auth;
 
 import com.padilla.backend.enums.Role;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
@@ -15,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Requiere:
  *   - Keycloak corriendo en http://62.171.160.238:8095
  *   - Client "padilla_frontend" con client roles: SUPER_ADMIN, MANAGER, ADMIN, OWNER, TENANT, PROVIDER
- *   - Admin "admin" / "GeronimoAdmin2024!" con permisos sobre el realm
+ *   - Admin del realm master: KEYCLOAK_TEST_ADMIN_USER / KEYCLOAK_TEST_ADMIN_PASSWORD (env)
  *
  * Estrategia de aislamiento:
  *   - Se crea un usuario de prueba unico al inicio (@BeforeAll)
@@ -33,6 +34,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *   07 → Email duplicado lanza excepcion
  *   08 → Eliminar usuario permanentemente y verificar que ya no existe
  */
+// PRO-004: corre contra un Keycloak real. Excluido de `./mvnw test` (tag "keycloak");
+// se ejecuta con `./mvnw test -Pkeycloak-it` y las credenciales por variable de entorno.
+@Tag("keycloak")
+@EnabledIfEnvironmentVariable(named = "KEYCLOAK_TEST_ADMIN_PASSWORD", matches = ".+")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("KeycloakAdminService — Integracion con Keycloak real")
@@ -41,10 +46,10 @@ class KeycloakAdminServiceIntegrationTest {
     // ---------------------------------------------------------------
     // Configuracion del servidor Keycloak
     // ---------------------------------------------------------------
-    private static final String KC_URL        = "http://62.171.160.238:8095";
+    private static final String KC_URL        = env("KEYCLOAK_TEST_URL", "http://62.171.160.238:8095");
     private static final String KC_REALM      = "padilla";
-    private static final String KC_ADMIN_USER = "admin";
-    private static final String KC_ADMIN_PASS = "GeronimoAdmin2024!";
+    private static final String KC_ADMIN_USER = env("KEYCLOAK_TEST_ADMIN_USER", "admin");
+    private static final String KC_ADMIN_PASS = env("KEYCLOAK_TEST_ADMIN_PASSWORD", "");
 
     // Usuario de prueba — NO es un usuario real del sistema
     private static final String TEST_EMAIL = "test-auto@padilla-test.local";
@@ -308,5 +313,10 @@ class KeycloakAdminServiceIntegrationTest {
         );
 
         System.out.println("[TEST 12] Credenciales admin invalidas rechazadas correctamente");
+    }
+
+    private static String env(String name, String defaultValue) {
+        String value = System.getenv(name);
+        return value == null || value.isBlank() ? defaultValue : value;
     }
 }
