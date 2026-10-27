@@ -1,12 +1,12 @@
 package com.padilla.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -21,9 +21,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter;
+    private final List<String> allowedOrigins;
 
-    public SecurityConfig(KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter) {
+    public SecurityConfig(KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter,
+                          @Value("${app.cors.allowed-origins}") List<String> allowedOrigins) {
         this.keycloakJwtAuthenticationConverter = keycloakJwtAuthenticationConverter;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -35,7 +38,9 @@ public class SecurityConfig {
                 // Preflight CORS requests
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Endpoints publicos (sin autenticacion)
-                .requestMatchers("/health", "/actuator/**", "/test", "/api/auth/**").permitAll()
+                // PRO-007: publico solo health/info del actuator (sin detalles) y el login
+                .requestMatchers("/health", "/actuator/health", "/actuator/health/**", "/actuator/info", "/api/auth/**").permitAll()
+                .requestMatchers("/actuator/**").denyAll()
                 // Endpoints solo para roles administrativos
                 .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "MANAGER", "ADMIN")
                 // Endpoints legacy de usuario
@@ -57,10 +62,15 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * PRO-007: CORS solo para los origenes del ambiente (app.cors.allowed-origins, separados por coma).
+     * Antes aceptaba cualquier origen con credenciales. En dev/staging/prod el frontend llama por el
+     * proxy de nginx (mismo origen), asi que CORS solo hace falta para desarrollo local.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOriginPatterns(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -69,11 +79,5 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
-    }
-
-    @Bean
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        return web -> web.ignoring()
-                .requestMatchers("/api/admin/ping");
     }
 }

@@ -1,5 +1,6 @@
 package com.padilla.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -17,6 +18,12 @@ import java.util.stream.Stream;
 
 @Component
 public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
+
+    private final String clientId;
+
+    public KeycloakJwtAuthenticationConverter(@Value("${keycloak.client-id:padilla_frontend}") String clientId) {
+        this.clientId = clientId;
+    }
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
@@ -52,25 +59,17 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
         return Collections.emptyList();
     }
 
+    /**
+     * PRO-007: solo los roles del cliente de Propero (keycloak.client-id). Antes se tomaban los roles
+     * de cualquier cliente del realm: un rol "ADMIN" de otra aplicacion daba ROLE_ADMIN aca.
+     */
     @SuppressWarnings("unchecked")
     private Collection<String> extractClientRoles(Jwt jwt) {
         Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
-        if (resourceAccess == null) {
+        if (resourceAccess == null || !(resourceAccess.get(clientId) instanceof Map<?, ?> clientAccess)) {
             return Collections.emptyList();
         }
-
-        // Buscar roles en cada cliente configurado
-        return resourceAccess.values().stream()
-                .filter(value -> value instanceof Map)
-                .map(value -> (Map<String, Object>) value)
-                .filter(clientAccess -> clientAccess.containsKey("roles"))
-                .flatMap(clientAccess -> {
-                    Object roles = clientAccess.get("roles");
-                    if (roles instanceof List) {
-                        return ((List<String>) roles).stream();
-                    }
-                    return Stream.empty();
-                })
-                .collect(Collectors.toList());
+        Object roles = clientAccess.get("roles");
+        return roles instanceof List ? (List<String>) roles : Collections.emptyList();
     }
 }
