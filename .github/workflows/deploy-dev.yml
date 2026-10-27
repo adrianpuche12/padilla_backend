@@ -1,9 +1,10 @@
 name: Deploy — DEV
 
+# PRO-001 (2026-10-27): el deploy automatico queda manual. No hay runner self-hosted
+# registrado para estos repos y Propero dev se construye en el servidor Nilo con
+# scripts/deploy-dev.sh (ver PRO-009). Se puede volver a 'push: dev' cuando haya runner.
 on:
-  push:
-    branches:
-      - dev
+  workflow_dispatch:
 
 env:
   IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/adrianpuche-padilla-backend

@@ -3,9 +3,11 @@ package com.padilla.backend.controller;
 import com.padilla.backend.dto.ticket.CreateTicketRequest;
 import com.padilla.backend.dto.ticket.TicketCommentDTO;
 import com.padilla.backend.dto.ticket.TicketDTO;
+import com.padilla.backend.dto.ticket.TicketProviderLogDTO;
 import com.padilla.backend.dto.ticket.UpdateTicketRequest;
 import com.padilla.backend.entity.Ticket;
 import com.padilla.backend.entity.TicketComment;
+import com.padilla.backend.entity.TicketProviderLog;
 import com.padilla.backend.enums.TicketPriority;
 import com.padilla.backend.enums.TicketStatus;
 import com.padilla.backend.service.ticket.TicketService;
@@ -91,6 +93,13 @@ public class TicketController {
         return ResponseEntity.ok(toDTO(updated));
     }
 
+    @GetMapping("/{id}/provider-history")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<List<TicketProviderLogDTO>> getProviderHistory(@PathVariable UUID id) {
+        List<TicketProviderLog> logs = ticketService.getProviderHistory(id);
+        return ResponseEntity.ok(logs.stream().map(this::toProviderLogDTO).collect(Collectors.toList()));
+    }
+
     @PostMapping("/{id}/comments")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'TENANT', 'PROVIDER')")
     public ResponseEntity<TicketCommentDTO> addComment(
@@ -103,6 +112,7 @@ public class TicketController {
     private TicketDTO toDTO(Ticket t) {
         return new TicketDTO(
                 t.getId(),
+                t.getTicketNumber(),
                 t.getTitle(),
                 t.getDescription(),
                 t.getCategory(),
@@ -115,6 +125,17 @@ public class TicketController {
                 t.getCreatedAt(),
                 t.getUpdatedAt(),
                 t.getClosedAt()
+        );
+    }
+
+    private TicketProviderLogDTO toProviderLogDTO(TicketProviderLog l) {
+        return new TicketProviderLogDTO(
+                l.getId(),
+                l.getTicketId(),
+                l.getChangedAt(),
+                l.getChangedBy(),
+                l.getOldProviderId(),
+                l.getNewProviderId()
         );
     }
 

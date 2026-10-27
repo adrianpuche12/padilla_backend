@@ -49,6 +49,9 @@ public class Ticket {
     @Column(name = "provider_id")
     private UUID providerId;
 
+    @Column(name = "ticket_number", insertable = false, updatable = false)
+    private Integer ticketNumber;
+
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
