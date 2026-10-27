@@ -21,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -79,15 +80,24 @@ public class AuthController {
         } catch (HttpClientErrorException.Unauthorized e) {
             log.warn("Credenciales invalidas para usuario: {}", loginRequest.getUsername());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Credenciales invalidas"));
-        } catch (HttpClientErrorException e) {
-            log.error("Error de Keycloak: {}", e.getMessage());
-            return ResponseEntity.status(e.getStatusCode())
-                    .body(Map.of("error", "Error de autenticacion", "detail", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Error inesperado en login: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error interno del servidor"));
+                    .body(Map.of("error", "INVALID_CREDENTIALS", "message", "Usuario o contraseña incorrectos"));
+        } catch (HttpClientErrorException.BadRequest e) {
+            // Keycloak responde 400 "Account disabled" para cuentas desactivadas.
+            // Se mantiene 400 + detail porque el login del frontend lo detecta asi.
+            String body = e.getResponseBodyAsString();
+            if (body != null && body.contains("Account disabled")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "ACCOUNT_DISABLED", "detail", "Account disabled",
+                                "message", "Tu cuenta fue desactivada"));
+            }
+            log.warn("Login rechazado por Keycloak (400): {}", body);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "INVALID_CREDENTIALS", "message", "Usuario o contraseña incorrectos"));
+        } catch (RestClientException e) {
+            // PRO-010: un error de Keycloak (configuracion, caida) ya no se reenvia tal cual al navegador
+            // (antes un 401 de Keycloak llegaba como "credenciales invalidas" y cerraba la sesion).
+            log.error("Error del servidor de autenticacion en login: {}", e.getMessage());
+            return authProviderError();
         }
     }
 
@@ -127,10 +137,9 @@ public class AuthController {
             log.info("Password cambiado exitosamente para usuario: {}", user.getEmail());
             return ResponseEntity.ok(Map.of("message", "Contraseña actualizada exitosamente"));
 
-        } catch (Exception e) {
-            log.error("Error al cambiar password: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al actualizar la contraseña"));
+        } catch (RestClientException e) {
+            log.error("Error de Keycloak al cambiar password: {}", e.getMessage());
+            return authProviderError();
         }
     }
 
@@ -194,18 +203,14 @@ public class AuthController {
         try {
             TokenResponse tokenResponse = keycloakAuthService.refresh(refreshRequest);
             return ResponseEntity.ok(tokenResponse);
-        } catch (HttpClientErrorException.BadRequest e) {
-            log.warn("Refresh token invalido o expirado");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Refresh token invalido o expirado"));
-        } catch (HttpClientErrorException e) {
-            log.error("Error de Keycloak al renovar token: {}", e.getMessage());
-            return ResponseEntity.status(e.getStatusCode())
-                    .body(Map.of("error", "Error al renovar token", "detail", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Error inesperado en refresh: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error interno del servidor"));
+        } catch (HttpClientErrorException.BadRequest | HttpClientErrorException.Unauthorized e) {
+            // Refresh vencido, revocado o de otra sesion: el frontend tiene que volver a loguear.
+            log.info("Refresh token invalido o expirado");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "SESSION_EXPIRED", "message", "La sesión venció. Volvé a ingresar."));
+        } catch (RestClientException e) {
+            log.error("Error del servidor de autenticacion al renovar token: {}", e.getMessage());
+            return authProviderError();
         }
     }
 
@@ -217,21 +222,24 @@ public class AuthController {
     public ResponseEntity<?> logout(@RequestBody RefreshRequest refreshRequest) {
         try {
             keycloakAuthService.logout(refreshRequest);
-            return ResponseEntity.ok(Map.of("message", "Sesion cerrada exitosamente"));
-        } catch (HttpClientErrorException e) {
-            log.error("Error de Keycloak en logout: {}", e.getMessage());
-            return ResponseEntity.status(e.getStatusCode())
-                    .body(Map.of("error", "Error al cerrar sesion", "detail", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Error inesperado en logout: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error interno del servidor"));
+        } catch (RestClientException e) {
+            // PRO-010: cerrar sesion es idempotente. Si Keycloak ya no reconoce el token
+            // (vencido o revocado) la sesion igual queda cerrada del lado del cliente.
+            log.info("Logout con token ya invalido o Keycloak no disponible: {}", e.getMessage());
         }
+        return ResponseEntity.ok(Map.of("message", "Sesion cerrada exitosamente"));
     }
 
     // ---------------------------------------------------
     // Helpers privados
     // ---------------------------------------------------
+
+    /** 502: el problema es del servidor de autenticacion, no del usuario ni de su sesion. */
+    private static ResponseEntity<Map<String, String>> authProviderError() {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of("error", "AUTH_PROVIDER_ERROR",
+                        "message", "El servicio de autenticación no está disponible. Intentá de nuevo en unos minutos."));
+    }
 
     private String validatePasswordStrength(String password) {
         if (password == null || password.length() < MIN_LENGTH)
