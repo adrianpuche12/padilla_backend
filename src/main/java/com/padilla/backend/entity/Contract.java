@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "contracts", schema = "padilla_dev")
+@Table(name = "contracts")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

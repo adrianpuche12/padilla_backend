@@ -30,7 +30,7 @@ public class UserService {
     private final JdbcTemplate jdbcTemplate;
     private final EmailService emailService;
 
-    @Value("${spring.jpa.properties.hibernate.default_schema:padilla_dev}")
+    @Value("${app.db.schema}")
     private String schema;
 
     // Jerarquia de roles: menor numero = mayor privilegio

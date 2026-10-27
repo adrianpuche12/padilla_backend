@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 @Entity
-@Table(name = "reserva_garantes", schema = "padilla_dev")
+@Table(name = "reserva_garantes")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

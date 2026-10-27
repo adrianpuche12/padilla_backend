@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "source", schema = "padilla")
+@Table(name = "source")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -2,6 +2,7 @@ package com.padilla.backend.config;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -40,7 +41,8 @@ public class LegacyDataSourceConfig {
     @Bean
     public LocalContainerEntityManagerFactoryBean
     legacyEntityManagerFactory(
-            @Qualifier("legacyDataSource") DataSource dataSource) {
+            @Qualifier("legacyDataSource") DataSource dataSource,
+            @Value("${legacy.db.schema:padilla}") String schema) {
         LocalContainerEntityManagerFactoryBean em = new
                 LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
@@ -53,6 +55,8 @@ public class LegacyDataSourceConfig {
         Properties jpaProperties = new Properties();
         jpaProperties.put("hibernate.dialect",
                 "org.hibernate.dialect.PostgreSQLDialect");
+        // PRO-002: schema legacy por ambiente (legacy.db.schema). Nunca se modifica el schema legacy.
+        jpaProperties.put("hibernate.default_schema", schema);
         jpaProperties.put("hibernate.hbm2ddl.auto", "none");
         jpaProperties.put("hibernate.show_sql", "false");
         em.setJpaProperties(jpaProperties);

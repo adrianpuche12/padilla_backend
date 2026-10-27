@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "client_profiles", schema = "padilla_dev")
+@Table(name = "client_profiles")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
