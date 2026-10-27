@@ -60,9 +60,6 @@ public class ReservaController {
             @PathVariable UUID id,
             @RequestBody Map<String, String> body) {
         String newStatus = body.get("status");
-        if (newStatus == null || newStatus.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
         Reserva updated = reservaService.updateStatus(id, newStatus);
         return ResponseEntity.ok(toDTO(updated, List.of()));
     }
