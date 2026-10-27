@@ -5,6 +5,7 @@ import com.padilla.backend.dto.auth.RefreshRequest;
 import com.padilla.backend.dto.auth.TokenResponse;
 import com.padilla.backend.enums.Role;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
@@ -33,6 +34,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *   07 — Logout revoca sesion correctamente
  *   08 — Refresh despues de logout → token invalido
  */
+// PRO-004: corre contra un Keycloak real. Excluido de `./mvnw test` (tag "keycloak");
+// se ejecuta con `./mvnw test -Pkeycloak-it` y las credenciales por variable de entorno.
+@Tag("keycloak")
+@EnabledIfEnvironmentVariable(named = "KEYCLOAK_TEST_ADMIN_PASSWORD", matches = ".+")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("KeycloakAuthService — Integracion con Keycloak real")
@@ -41,10 +46,10 @@ class KeycloakAuthServiceIntegrationTest {
     // ---------------------------------------------------------------
     // Configuracion
     // ---------------------------------------------------------------
-    private static final String KC_URL        = "http://62.171.160.238:8095";
+    private static final String KC_URL        = env("KEYCLOAK_TEST_URL", "http://62.171.160.238:8095");
     private static final String KC_REALM      = "padilla";
-    private static final String KC_ADMIN_USER = "admin";
-    private static final String KC_ADMIN_PASS = "GeronimoAdmin2024!";
+    private static final String KC_ADMIN_USER = env("KEYCLOAK_TEST_ADMIN_USER", "admin");
+    private static final String KC_ADMIN_PASS = env("KEYCLOAK_TEST_ADMIN_PASSWORD", "");
     private static final String KC_CLIENT_ID  = "padilla_frontend";
 
     private static final String TEST_EMAIL    = "test-auth@padilla-test.local";
@@ -317,5 +322,10 @@ class KeycloakAuthServiceIntegrationTest {
         );
 
         System.out.println("[TEST 10] Logout con token invalido rechazado correctamente");
+    }
+
+    private static String env(String name, String defaultValue) {
+        String value = System.getenv(name);
+        return value == null || value.isBlank() ? defaultValue : value;
     }
 }
