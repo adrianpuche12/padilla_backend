@@ -1,26 +1,31 @@
 package com.padilla.backend.service.ticket;
 
-
-import com.padilla.backend.exception.NotFoundException;
-import com.padilla.backend.security.CurrentUser;
+import com.padilla.backend.entity.Contract;
+import com.padilla.backend.entity.Property;
 import com.padilla.backend.entity.Ticket;
 import com.padilla.backend.entity.TicketComment;
 import com.padilla.backend.entity.TicketProviderLog;
+import com.padilla.backend.entity.User;
+import com.padilla.backend.enums.ContractStatus;
 import com.padilla.backend.enums.Role;
 import com.padilla.backend.enums.TicketStatus;
+import com.padilla.backend.exception.BadRequestException;
+import com.padilla.backend.exception.ConflictException;
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.exception.RbacException;
+import com.padilla.backend.repository.ContractRepository;
+import com.padilla.backend.repository.PropertyRepository;
 import com.padilla.backend.repository.TicketCommentRepository;
 import com.padilla.backend.repository.TicketProviderLogRepository;
 import com.padilla.backend.repository.TicketRepository;
+import com.padilla.backend.repository.UserRepository;
+import com.padilla.backend.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,109 +36,154 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final TicketCommentRepository ticketCommentRepository;
     private final TicketProviderLogRepository ticketProviderLogRepository;
+    private final UserRepository userRepository;
+    private final PropertyRepository propertyRepository;
+    private final ContractRepository contractRepository;
 
     // --- Consultas ---
 
     public List<Ticket> findAll(TicketStatus status) {
         Role callerRole = CurrentUser.role();
 
-        if (isAdmin(callerRole)) {
+        if (callerRole.isManagement()) {
             if (status != null) return ticketRepository.findByStatusOrderByCreatedAtDesc(status);
             return ticketRepository.findAllByOrderByCreatedAtDesc();
         }
 
         UUID callerId = CurrentUser.id();
-
-        if (callerRole == Role.TENANT) {
-            if (status != null) return ticketRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(callerId, status);
-            return ticketRepository.findByTenantIdOrderByCreatedAtDesc(callerId);
-        }
-
-        if (callerRole == Role.PROVIDER) {
-            return ticketRepository.findByProviderIdOrderByCreatedAtDesc(callerId);
-        }
-
-        if (callerRole == Role.OWNER) {
-            return ticketRepository.findByPropertyIdOrderByCreatedAtDesc(callerId);
-        }
-
-        throw new RbacException("Role " + callerRole + " has no access to tickets");
+        List<Ticket> tickets = switch (callerRole) {
+            case TENANT -> ticketRepository.findByTenantIdOrderByCreatedAtDesc(callerId);
+            case PROVIDER -> ticketRepository.findByProviderIdOrderByCreatedAtDesc(callerId);
+            // PRO-015: antes se buscaba por propertyId = id del usuario y el OWNER nunca veia nada
+            case OWNER -> ticketRepository.findByPropertyIdInOrderByCreatedAtDesc(ownedPropertyIds(callerId));
+            default -> throw new RbacException("El rol " + callerRole + " no tiene acceso a tickets");
+        };
+        return status == null ? tickets : tickets.stream().filter(t -> t.getStatus() == status).toList();
     }
 
     public Optional<Ticket> findById(UUID id) {
         Role callerRole = CurrentUser.role();
         Optional<Ticket> ticket = ticketRepository.findById(id);
 
-        if (isAdmin(callerRole)) return ticket;
+        if (callerRole.isManagement()) return ticket;
 
         UUID callerId = CurrentUser.id();
-
-        return ticket.filter(t -> {
-            if (callerRole == Role.TENANT)   return callerId.equals(t.getTenantId());
-            if (callerRole == Role.PROVIDER) return callerId.equals(t.getProviderId());
-            if (callerRole == Role.OWNER)    return callerId.equals(t.getPropertyId());
-            return false;
+        return ticket.filter(t -> switch (callerRole) {
+            case TENANT -> callerId.equals(t.getTenantId());
+            case PROVIDER -> callerId.equals(t.getProviderId());
+            case OWNER -> isOwnerOf(callerId, t.getPropertyId());
+            default -> false;
         });
     }
 
     public List<TicketComment> findComments(UUID ticketId) {
-        findById(ticketId).orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
-
+        requireVisible(ticketId);
         Role callerRole = CurrentUser.role();
-        if (isAdmin(callerRole) || callerRole == Role.PROVIDER) {
+        if (callerRole.isManagement() || callerRole == Role.PROVIDER) {
             return ticketCommentRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
         }
+        // TENANT y OWNER: solo comentarios no internos
         return ticketCommentRepository.findByTicketIdAndInternalFalseOrderByCreatedAtAsc(ticketId);
     }
 
     // --- Mutaciones ---
 
+    /**
+     * PRO-012: el inquilino abre tickets de su vivienda; el personal de la inmobiliaria puede abrirlos
+     * por el inquilino (llamado telefonico, etc.). Si el admin no indica inquilino se toma el del
+     * contrato ACTIVE de la propiedad o el inquilino asignado a la propiedad.
+     */
     @Transactional
-    public Ticket create(Ticket ticket) {
+    public Ticket create(Ticket ticket, UUID requestedTenantId) {
         Role callerRole = CurrentUser.role();
-        if (callerRole != Role.TENANT && !isAdmin(callerRole)) {
-            throw new RbacException("Only TENANT can open tickets");
-        }
+        Property property = propertyRepository.findById(ticket.getPropertyId())
+                .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + ticket.getPropertyId()));
 
         if (callerRole == Role.TENANT) {
-            ticket.setTenantId(CurrentUser.id());
+            UUID callerId = CurrentUser.id();
+            if (!callerId.equals(resolveTenant(property).orElse(null))) {
+                throw new RbacException("Solo podes abrir tickets de la propiedad que alquilas");
+            }
+            ticket.setTenantId(callerId);
+        } else if (callerRole.isManagement()) {
+            UUID tenantId = requestedTenantId != null ? requestedTenantId : resolveTenant(property)
+                    .orElseThrow(() -> new BadRequestException(
+                            "La propiedad no tiene inquilino: indica para que inquilino es el ticket"));
+            User tenant = userRepository.findById(tenantId)
+                    .orElseThrow(() -> new NotFoundException("Inquilino no encontrado: " + tenantId));
+            if (tenant.getRole() != Role.TENANT) {
+                throw new BadRequestException("El usuario indicado no es un inquilino");
+            }
+            ticket.setTenantId(tenantId);
+        } else {
+            throw new RbacException("El rol " + callerRole + " no puede abrir tickets");
         }
 
         ticket.setStatus(TicketStatus.ABIERTA);
         return ticketRepository.save(ticket);
     }
 
+    /** PRO-012: cambio de estado con maquina de estados (TicketStatus#canTransitionTo). */
     @Transactional
-    public Ticket updateStatus(UUID id, TicketStatus newStatus) {
+    public Ticket updateStatus(UUID id, TicketStatus newStatus, String reason) {
+        if (newStatus == null) {
+            throw new BadRequestException("El estado es obligatorio");
+        }
         Role callerRole = CurrentUser.role();
-        UUID callerId = CurrentUser.id();
-
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + id));
 
         if (callerRole == Role.PROVIDER) {
-            if (!callerId.equals(ticket.getProviderId())) {
-                throw new RbacException("PROVIDER can only update their own assigned tickets");
+            if (!CurrentUser.id().equals(ticket.getProviderId())) {
+                throw new RbacException("Solo podes actualizar los tickets que tenes asignados");
             }
             if (newStatus != TicketStatus.EN_PROCESO && newStatus != TicketStatus.RESUELTA) {
-                throw new RbacException("PROVIDER can only set EN_PROCESO or RESUELTA");
+                throw new RbacException("El proveedor solo puede pasar el ticket a EN_PROCESO o RESUELTA");
             }
-        } else if (!isAdmin(callerRole)) {
-            throw new RbacException("Role " + callerRole + " cannot update ticket status");
+        } else if (callerRole == Role.TENANT) {
+            // El inquilino solo puede cancelar su propio ticket mientras no fue tomado
+            if (!CurrentUser.id().equals(ticket.getTenantId()) || newStatus != TicketStatus.CANCELADA
+                    || ticket.getStatus() != TicketStatus.ABIERTA) {
+                throw new RbacException("Solo podes cancelar tus tickets mientras estan abiertos");
+            }
+        } else if (!callerRole.isManagement()) {
+            throw new RbacException("El rol " + callerRole + " no puede cambiar el estado de un ticket");
         }
 
-        ticket.setStatus(newStatus);
-        if (newStatus == TicketStatus.CERRADA || newStatus == TicketStatus.RESUELTA) {
-            ticket.setClosedAt(OffsetDateTime.now());
+        if (newStatus == TicketStatus.RECHAZADA) {
+            return reject(id, reason);
+        }
+        transition(ticket, newStatus);
+        if (newStatus == TicketStatus.CANCELADA) {
+            ticket.setRejectionReason(reason);
         }
         return ticketRepository.save(ticket);
     }
 
+    /**
+     * PRO-011: el proveedor tiene que existir, ser PROVIDER y estar activo (antes cualquier UUID
+     * entraba y fallaba la FK con 500). changed_by sale del usuario actual, que existe en users
+     * gracias a la provision JIT (PRO-005).
+     */
     @Transactional
     public Ticket assignProvider(UUID ticketId, UUID providerId) {
-        validateIsAdmin();
+        CurrentUser.requireManagement();
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+        if (ticket.getStatus().isFinal()) {
+            throw new ConflictException("No se puede asignar un proveedor a un ticket " + ticket.getStatus());
+        }
+        User provider = userRepository.findById(providerId)
+                .orElseThrow(() -> new NotFoundException("Proveedor no encontrado: " + providerId));
+        if (provider.getRole() != Role.PROVIDER) {
+            throw new BadRequestException("El usuario indicado no es un proveedor");
+        }
+        if (!provider.isActive()) {
+            throw new BadRequestException("El proveedor esta desactivado");
+        }
+        if (providerId.equals(ticket.getProviderId())) {
+            return ticket;
+        }
 
         TicketProviderLog log = new TicketProviderLog();
         log.setTicketId(ticketId);
@@ -143,12 +193,14 @@ public class TicketService {
         ticketProviderLogRepository.save(log);
 
         ticket.setProviderId(providerId);
-        ticket.setStatus(TicketStatus.EN_PROCESO);
+        if (ticket.getStatus() == TicketStatus.ABIERTA) {
+            transition(ticket, TicketStatus.EN_PROCESO);
+        }
         return ticketRepository.save(ticket);
     }
 
     public List<TicketProviderLog> getProviderHistory(UUID ticketId) {
-        validateIsAdmin();
+        CurrentUser.requireManagement();
         ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
         return ticketProviderLogRepository.findByTicketIdOrderByChangedAtDesc(ticketId);
@@ -156,27 +208,27 @@ public class TicketService {
 
     @Transactional
     public Ticket reject(UUID ticketId, String reason) {
-        validateIsAdmin();
+        CurrentUser.requireManagement();
+        if (reason == null || reason.isBlank()) {
+            throw new BadRequestException("El motivo del rechazo es obligatorio");
+        }
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
-
-        ticket.setStatus(TicketStatus.RECHAZADA);
+        transition(ticket, TicketStatus.RECHAZADA);
         ticket.setRejectionReason(reason);
-        ticket.setClosedAt(OffsetDateTime.now());
         return ticketRepository.save(ticket);
     }
 
     @Transactional
     public TicketComment addComment(UUID ticketId, String content, boolean internal) {
         Role callerRole = CurrentUser.role();
+        requireVisible(ticketId);
 
-        findById(ticketId).orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
-
-        if (callerRole == Role.TENANT && internal) {
-            throw new RbacException("TENANT cannot add internal comments");
-        }
         if (callerRole == Role.OWNER) {
-            throw new RbacException("OWNER cannot comment on tickets");
+            throw new RbacException("El propietario no puede comentar tickets");
+        }
+        if (internal && !callerRole.isManagement()) {
+            throw new RbacException("Solo la inmobiliaria puede dejar comentarios internos");
         }
 
         TicketComment comment = new TicketComment();
@@ -187,18 +239,37 @@ public class TicketService {
         return ticketCommentRepository.save(comment);
     }
 
-    // --- RBAC helpers ---
+    // --- Helpers ---
 
-    private boolean isAdmin(Role role) {
-        return role.level() <= Role.ADMIN.level();
-    }
-
-    private void validateIsAdmin() {
-        Role callerRole = CurrentUser.role();
-        if (!isAdmin(callerRole)) {
-            throw new RbacException("Role " + callerRole + " cannot perform this action");
+    private static void transition(Ticket ticket, TicketStatus target) {
+        TicketStatus current = ticket.getStatus();
+        if (!current.canTransitionTo(target)) {
+            throw new ConflictException("No se puede pasar un ticket de " + current + " a " + target
+                    + ". Estados posibles: " + current.nextStates());
+        }
+        ticket.setStatus(target);
+        if (target.isFinal()) {
+            ticket.setClosedAt(OffsetDateTime.now());
+        } else if (current.isFinal() || current == TicketStatus.RESUELTA) {
+            ticket.setClosedAt(null);
         }
     }
 
+    private void requireVisible(UUID ticketId) {
+        findById(ticketId).orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+    }
 
+    private Optional<UUID> resolveTenant(Property property) {
+        return contractRepository.findByPropertyIdAndStatus(property.getId(), ContractStatus.ACTIVE)
+                .map(Contract::getTenantId)
+                .or(() -> Optional.ofNullable(property.getTenantId()));
+    }
+
+    private List<UUID> ownedPropertyIds(UUID ownerId) {
+        return propertyRepository.findByOwnerId(ownerId).stream().map(Property::getId).toList();
+    }
+
+    private boolean isOwnerOf(UUID ownerId, UUID propertyId) {
+        return propertyRepository.findById(propertyId).map(p -> ownerId.equals(p.getOwnerId())).orElse(false);
+    }
 }

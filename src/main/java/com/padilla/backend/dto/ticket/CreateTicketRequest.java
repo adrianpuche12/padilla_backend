@@ -24,4 +24,10 @@ public class CreateTicketRequest {
 
     @NotNull(message = "La propiedad es obligatoria")
     private UUID propertyId;
+
+    /**
+     * PRO-012: opcional. Solo lo usa el personal de la inmobiliaria al abrir un ticket por el inquilino.
+     * Si falta, se toma el inquilino del contrato activo de la propiedad.
+     */
+    private UUID tenantId;
 }
