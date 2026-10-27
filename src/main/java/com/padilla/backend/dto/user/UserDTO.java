@@ -23,4 +23,6 @@ public class UserDTO {
     private OffsetDateTime createdAt;
     private boolean firstLogin;
     private OffsetDateTime passwordResetExpiresAt;
+    /** PRO-013: si quien consulta puede gestionar a este usuario. Null fuera de la vista de sistema. */
+    private Boolean canManage;
 }

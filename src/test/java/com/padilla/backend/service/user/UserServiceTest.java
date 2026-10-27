@@ -79,7 +79,8 @@ class UserServiceTest {
         // y Mockito strict mode los rechazaria. lenient() lo permite.
         lenient().when(ctx.getAuthentication()).thenReturn(auth);
         lenient().when(auth.getAuthorities()).thenAnswer(i -> authorities);
-        lenient().when(auth.getName()).thenReturn(callerEmail);
+        // PRO-005: el principal es el sub (UUID). Si el test pasa un email, se usa un id cualquiera.
+        lenient().when(auth.getName()).thenReturn(callerEmail.contains("@") ? UUID.randomUUID().toString() : callerEmail);
 
         SecurityContextHolder.setContext(ctx);
     }
@@ -169,7 +170,7 @@ class UserServiceTest {
 
             RbacException ex = assertThrows(RbacException.class,
                     () -> userService.createUser(target));
-            assertTrue(ex.getMessage().contains("cannot manage"),
+            assertTrue(ex.getMessage().contains("no puede gestionar"),
                     "El mensaje debe indicar que MANAGER no puede gestionar SUPER_ADMIN");
         }
 
@@ -218,27 +219,24 @@ class UserServiceTest {
         @Test
         @DisplayName("deactivateUser: no puede desactivar su propia cuenta")
         void deactivateUser_sobreSiMismo_deberiaLanzarRbacException() {
-            String callerEmail = "superadmin@padilla.test";
-            mockCallerRoleAndEmail(Role.SUPER_ADMIN, callerEmail);
-
+            // PRO-016: el usuario actual se identifica por su id (sub del JWT), no por el email
             UUID userId = UUID.randomUUID();
-            User self = buildUser(userId, callerEmail, Role.MANAGER);
+            mockCallerRoleAndEmail(Role.SUPER_ADMIN, userId.toString());
+            User self = buildUser(userId, "superadmin@padilla.test", Role.MANAGER);
             when(userRepository.findById(userId)).thenReturn(Optional.of(self));
 
             RbacException ex = assertThrows(RbacException.class,
                     () -> userService.deactivateUser(userId));
-            assertTrue(ex.getMessage().contains("cannot deactivate your own account"),
+            assertTrue(ex.getMessage().contains("propia cuenta"),
                     "Mensaje debe indicar que no puede desactivar su propia cuenta");
         }
 
         @Test
         @DisplayName("deleteUserPermanently: no puede eliminarse a si mismo")
         void deleteUserPermanently_sobreSiMismo_deberiaLanzarRbacException() {
-            String callerEmail = "superadmin@padilla.test";
-            mockCallerRoleAndEmail(Role.SUPER_ADMIN, callerEmail);
-
             UUID userId = UUID.randomUUID();
-            User self = buildUser(userId, callerEmail, Role.MANAGER);
+            mockCallerRoleAndEmail(Role.SUPER_ADMIN, userId.toString());
+            User self = buildUser(userId, "superadmin@padilla.test", Role.MANAGER);
             when(userRepository.findById(userId)).thenReturn(Optional.of(self));
 
             assertThrows(RbacException.class,
@@ -655,6 +653,12 @@ class UserServiceTest {
     @Nested
     @DisplayName("resetPassword — Keycloak + DB firstLogin + email")
     class ResetPassword {
+
+        @BeforeEach
+        void comoSuperAdmin() {
+            // PRO-016: resetPassword ahora valida la cascada, necesita un usuario autenticado
+            mockCallerRole(Role.SUPER_ADMIN);
+        }
 
         @Test
         @DisplayName("01 — resetPassword: resetea Keycloak, activa firstLogin en DB y envia email")
