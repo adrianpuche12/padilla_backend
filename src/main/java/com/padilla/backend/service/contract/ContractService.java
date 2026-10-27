@@ -1,5 +1,7 @@
 package com.padilla.backend.service.contract;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Contract;
 import com.padilla.backend.entity.ContractPeriod;
@@ -122,7 +124,7 @@ public class ContractService {
     public Contract update(UUID id, java.math.BigDecimal monthlyAmount, String currency, java.time.LocalDate endDate) {
         validateIsAdmin();
         Contract contract = contractRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Contract not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Contrato no encontrado: " + id));
 
         if (monthlyAmount != null) contract.setMonthlyAmount(monthlyAmount);
         if (currency != null) contract.setCurrency(currency);
@@ -135,7 +137,7 @@ public class ContractService {
     public void terminate(UUID id) {
         validateIsAdmin();
         Contract contract = contractRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Contract not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Contrato no encontrado: " + id));
 
         contract.setStatus(ContractStatus.TERMINATED);
         contract.setActive(false);

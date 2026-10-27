@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.entity.legacy.Source;
 import com.padilla.backend.service.SourceService;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +30,7 @@ public class SourceController {
     public ResponseEntity<Source> getSourceById(@PathVariable Integer id) {
         return sourceService.findById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Fuente no encontrada"));
     }
 
     @GetMapping("/count")

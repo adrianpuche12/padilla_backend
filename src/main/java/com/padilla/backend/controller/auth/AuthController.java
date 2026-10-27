@@ -1,5 +1,6 @@
 package com.padilla.backend.controller.auth;
 
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.auth.ChangePasswordRequest;
 import com.padilla.backend.dto.auth.ForgotPasswordRequest;
 import com.padilla.backend.dto.auth.LoginRequest;
@@ -113,7 +114,7 @@ public class AuthController {
             // Obtener usuario desde el JWT (sub = UUID del usuario)
             UUID userId = UUID.fromString(jwt.getSubject());
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
+                    .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + userId));
 
             // Actualizar password en Keycloak
             keycloakAdminService.setPermanentPasswordById(userId.toString(), newPassword);

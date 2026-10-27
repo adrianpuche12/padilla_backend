@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.user.CreateUserRequest;
 import com.padilla.backend.dto.user.CreateUserResponse;
 import com.padilla.backend.dto.user.UpdateUserRequest;
@@ -88,7 +90,7 @@ public class UserController {
     public ResponseEntity<UserDTO> getUser(@PathVariable UUID id) {
         return userService.findById(id)
                 .map(user -> ResponseEntity.ok(toDTO(user)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
     }
 
     @PostMapping("/api/users")
@@ -150,10 +152,6 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, String>> handleConflict(IllegalStateException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
-    }
 
     private UserDTO toDTO(User user) {
         return new UserDTO(

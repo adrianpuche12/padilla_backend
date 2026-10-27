@@ -1,5 +1,7 @@
 package com.padilla.backend.service.ticket;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.Ticket;
 import com.padilla.backend.entity.TicketComment;
@@ -75,7 +77,7 @@ public class TicketService {
     }
 
     public List<TicketComment> findComments(UUID ticketId) {
-        findById(ticketId).orElseThrow(() -> new RuntimeException("Ticket not found or access denied: " + ticketId));
+        findById(ticketId).orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
 
         Role callerRole = CurrentUser.role();
         if (isAdmin(callerRole) || callerRole == Role.PROVIDER) {
@@ -107,7 +109,7 @@ public class TicketService {
         UUID callerId = CurrentUser.id();
 
         Ticket ticket = ticketRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Ticket not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + id));
 
         if (callerRole == Role.PROVIDER) {
             if (!callerId.equals(ticket.getProviderId())) {
@@ -131,7 +133,7 @@ public class TicketService {
     public Ticket assignProvider(UUID ticketId, UUID providerId) {
         validateIsAdmin();
         Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
 
         TicketProviderLog log = new TicketProviderLog();
         log.setTicketId(ticketId);
@@ -148,7 +150,7 @@ public class TicketService {
     public List<TicketProviderLog> getProviderHistory(UUID ticketId) {
         validateIsAdmin();
         ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
         return ticketProviderLogRepository.findByTicketIdOrderByChangedAtDesc(ticketId);
     }
 
@@ -156,7 +158,7 @@ public class TicketService {
     public Ticket reject(UUID ticketId, String reason) {
         validateIsAdmin();
         Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
 
         ticket.setStatus(TicketStatus.RECHAZADA);
         ticket.setRejectionReason(reason);
@@ -168,7 +170,7 @@ public class TicketService {
     public TicketComment addComment(UUID ticketId, String content, boolean internal) {
         Role callerRole = CurrentUser.role();
 
-        findById(ticketId).orElseThrow(() -> new RuntimeException("Ticket not found or access denied: " + ticketId));
+        findById(ticketId).orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
 
         if (callerRole == Role.TENANT && internal) {
             throw new RbacException("TENANT cannot add internal comments");

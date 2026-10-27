@@ -1,5 +1,7 @@
 package com.padilla.backend.controller;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.contract.ContractDTO;
 import com.padilla.backend.dto.contract.ContractPeriodDTO;
 import com.padilla.backend.dto.contract.CreateContractRequest;
@@ -39,7 +41,7 @@ public class ContractController {
     public ResponseEntity<ContractDTO> getContract(@PathVariable UUID id) {
         return contractService.findById(id)
                 .map(c -> ResponseEntity.ok(toDTO(c)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new NotFoundException("Contrato no encontrado"));
     }
 
     @PostMapping

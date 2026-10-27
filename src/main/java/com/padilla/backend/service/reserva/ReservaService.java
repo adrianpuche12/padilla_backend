@@ -1,5 +1,7 @@
 package com.padilla.backend.service.reserva;
 
+
+import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,7 +54,7 @@ public class ReservaService {
     }
 
     public List<ReservaGarante> findGarantes(UUID reservaId) {
-        findById(reservaId).orElseThrow(() -> new RuntimeException("Reserva not found or access denied: " + reservaId));
+        findById(reservaId).orElseThrow(() -> new NotFoundException("Reserva no encontrada: " + reservaId));
         return reservaGaranteRepository.findByReservaId(reservaId);
     }
 
@@ -120,7 +122,7 @@ public class ReservaService {
     public Reserva updateStatus(UUID id, String newStatus) {
         validateIsAdmin();
         Reserva reserva = reservaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Reserva not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Reserva no encontrada: " + id));
         reserva.setStatus(newStatus);
         return reservaRepository.save(reserva);
     }
@@ -129,7 +131,7 @@ public class ReservaService {
     public void delete(UUID id) {
         validateIsAdmin();
         reservaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Reserva not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Reserva no encontrada: " + id));
         reservaGaranteRepository.deleteByReservaId(id);
         reservaRepository.deleteById(id);
     }
