@@ -52,6 +52,13 @@ class PropertyServiceTest {
     private com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
 
 
+    @Mock
+
+
+    private com.padilla.backend.repository.ContractRepository contractRepository;
+
+
+
     @InjectMocks
     private PropertyService propertyService;
 
@@ -266,7 +273,7 @@ class PropertyServiceTest {
     class ActivacionDesactivacion {
 
         @Test
-        @DisplayName("Al desactivar, la propiedad queda con active=false y status=MAINTENANCE")
+        @DisplayName("Al desactivar, la propiedad queda con active=false y conserva su status (PRO-043)")
         void deactivate_propiedadQuedaInactiva() {
             mockCallerRole(Role.ADMIN);
             Property existente = buildProperty();
@@ -277,7 +284,7 @@ class PropertyServiceTest {
             propertyService.deactivate(existente.getId());
 
             verify(propertyRepository).save(argThat(p ->
-                    !p.isActive() && p.getStatus() == PropertyStatus.MAINTENANCE
+                    !p.isActive() && p.getStatus() != PropertyStatus.MAINTENANCE
             ));
         }
 

@@ -104,6 +104,15 @@ public class PropertyController {
         return ResponseEntity.ok(toDTO(updated));
     }
 
+    /** PRO-043: forma recomendada. DELETE /{id} queda como alias (deprecado) por compatibilidad. */
+    @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<Void> deactivatePropertyPatch(@PathVariable UUID id) {
+        propertyService.deactivate(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @Deprecated
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
     public ResponseEntity<Void> deactivateProperty(@PathVariable UUID id) {

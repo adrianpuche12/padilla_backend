@@ -31,4 +31,6 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
     List<Ticket> findByPropertyIdInOrderByCreatedAtDesc(Collection<UUID> propertyIds);
 
     long countByStatus(TicketStatus status);
+
+    long countByProviderIdAndStatusIn(UUID providerId, Collection<TicketStatus> statuses);
 }

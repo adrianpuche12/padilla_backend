@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +44,8 @@ public class MeController {
     private final AgencyRepository agencyRepository;
     private final KeycloakAuthService keycloakAuthService;
     private final KeycloakAdminService keycloakAdminService;
+    private final com.padilla.backend.repository.PropertyRepository propertyRepository;
+    private final com.padilla.backend.repository.ContractRepository contractRepository;
 
     public record UpdateMeRequest(
             @NotBlank(message = "El nombre es obligatorio") @Size(max = 255) String name,
@@ -76,6 +79,48 @@ public class MeController {
             r.put("specialty", p.getSpecialty());
         });
         return r;
+    }
+
+    /** PRO-042: "Mis propiedades" (OWNER) o "Mi vivienda" (TENANT). */
+    @GetMapping("/properties")
+    @PreAuthorize("hasAnyRole('OWNER', 'TENANT')")
+    public List<Map<String, Object>> myProperties() {
+        UUID me = CurrentUser.id();
+        List<com.padilla.backend.entity.Property> props = CurrentUser.role() == com.padilla.backend.enums.Role.OWNER
+                ? propertyRepository.findByOwnerIdAndActive(me, true)
+                : propertyRepository.findByTenantIdAndActive(me, true);
+        return props.stream().map(p -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", p.getId());
+            m.put("address", p.getAddress());
+            m.put("city", p.getCity());
+            m.put("type", p.getType());
+            m.put("status", p.getStatus());
+            m.put("rentalStatus", p.getRentalStatus());
+            return m;
+        }).toList();
+    }
+
+    /** PRO-042: "Mis contratos" (OWNER o TENANT), con el periodo vigente. */
+    @GetMapping("/contracts")
+    @PreAuthorize("hasAnyRole('OWNER', 'TENANT')")
+    public List<Map<String, Object>> myContracts() {
+        UUID me = CurrentUser.id();
+        List<com.padilla.backend.entity.Contract> cs = CurrentUser.role() == com.padilla.backend.enums.Role.OWNER
+                ? contractRepository.findByOwnerIdAndActive(me, true)
+                : contractRepository.findByTenantIdAndActive(me, true);
+        return cs.stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", c.getId());
+            m.put("propertyId", c.getPropertyId());
+            m.put("propertyAddress", propertyRepository.findById(c.getPropertyId()).map(p -> p.getAddress()).orElse(null));
+            m.put("status", c.getStatus());
+            m.put("startDate", c.getStartDate());
+            m.put("endDate", c.getEndDate());
+            m.put("monthlyAmount", c.getMonthlyAmount());
+            m.put("currency", c.getCurrency());
+            return m;
+        }).toList();
     }
 
     /** Edita los datos de contacto propios. El email y el rol no se cambian desde aca. */
