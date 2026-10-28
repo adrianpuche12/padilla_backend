@@ -20,6 +20,7 @@ import com.padilla.backend.repository.TicketProviderLogRepository;
 import com.padilla.backend.repository.TicketRepository;
 import com.padilla.backend.repository.UserRepository;
 import com.padilla.backend.security.CurrentUser;
+import com.padilla.backend.service.notification.TicketEvents;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,8 @@ public class TicketService {
     private final PropertyRepository propertyRepository;
     private final ContractRepository contractRepository;
     private final com.padilla.backend.repository.ClientProfileRepository clientProfileRepository;
+    // PRO-060: los cambios de los tickets se publican como eventos (notificaciones, decision D6)
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     // --- Consultas ---
 
@@ -128,7 +131,9 @@ public class TicketService {
         }
 
         ticket.setStatus(TicketStatus.ABIERTA);
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.saveAndFlush(ticket);
+        events.publishEvent(new TicketEvents.Created(saved));
+        return saved;
     }
 
     /** PRO-012: cambio de estado con maquina de estados (TicketStatus#canTransitionTo). */
@@ -161,11 +166,14 @@ public class TicketService {
         if (newStatus == TicketStatus.RECHAZADA) {
             return reject(id, reason);
         }
+        TicketStatus from = ticket.getStatus();
         transition(ticket, newStatus);
         if (newStatus == TicketStatus.CANCELADA) {
             ticket.setRejectionReason(reason);
         }
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        events.publishEvent(new TicketEvents.StatusChanged(saved, from, newStatus));
+        return saved;
     }
 
     /**
@@ -200,11 +208,18 @@ public class TicketService {
         log.setNewProviderId(providerId);
         ticketProviderLogRepository.save(log);
 
+        UUID oldProvider = ticket.getProviderId();
+        TicketStatus from = ticket.getStatus();
         ticket.setProviderId(providerId);
         if (ticket.getStatus() == TicketStatus.ABIERTA) {
             transition(ticket, TicketStatus.EN_PROCESO);
         }
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        events.publishEvent(new TicketEvents.ProviderAssigned(saved, oldProvider));
+        if (from != saved.getStatus()) {
+            events.publishEvent(new TicketEvents.StatusChanged(saved, from, saved.getStatus()));
+        }
+        return saved;
     }
 
     /** PRO-041: proveedores sugeridos segun la categoria del ticket, ordenados por carga de trabajo. */
@@ -247,9 +262,12 @@ public class TicketService {
         }
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+        TicketStatus from = ticket.getStatus();
         transition(ticket, TicketStatus.RECHAZADA);
         ticket.setRejectionReason(reason);
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        events.publishEvent(new TicketEvents.StatusChanged(saved, from, TicketStatus.RECHAZADA));
+        return saved;
     }
 
     @Transactional
@@ -269,7 +287,10 @@ public class TicketService {
         comment.setAuthorId(CurrentUser.id());
         comment.setContent(content);
         comment.setInternal(internal);
-        return ticketCommentRepository.save(comment);
+        TicketComment saved = ticketCommentRepository.save(comment);
+        ticketRepository.findById(ticketId).ifPresent(t ->
+                events.publishEvent(new TicketEvents.CommentAdded(t, saved.getAuthorId(), internal)));
+        return saved;
     }
 
     // --- Helpers ---
