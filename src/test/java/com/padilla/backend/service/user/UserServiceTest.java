@@ -61,6 +61,13 @@ class UserServiceTest {
     private com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
 
 
+    @Mock
+
+
+    private com.padilla.backend.service.user.UserLifecycleService userLifecycleService;
+
+
+
     @InjectMocks
     private UserService userService;
 
@@ -603,7 +610,8 @@ class UserServiceTest {
 
             verify(keycloakAdminService).resetPasswordByEmail("tenant@padilla.test");
             verify(userRepository).save(argThat(u -> u.isFirstLogin() && u.getPasswordResetExpiresAt() != null));
-            verify(emailService).sendPasswordResetEmail("tenant@padilla.test", user.getName(), "TempPass123!");
+            // PRO-032: el reenvio usa su propio mail (antes mandaba el de restablecimiento)
+            verify(emailService).sendResendAccessEmail("tenant@padilla.test", user.getName(), "TempPass123!");
         }
 
         @Test

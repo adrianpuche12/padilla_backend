@@ -67,9 +67,20 @@ public class ClientController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * PRO-033 (decision D5): DELETE es baja logica (antes borraba de la base y de Keycloak).
+     * El borrado definitivo queda en DELETE /{id}/permanent, solo SUPER_ADMIN.
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
     public ResponseEntity<Void> deleteClient(@PathVariable UUID id) {
+        clientService.deactivateClient(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> deleteClientPermanently(@PathVariable UUID id) {
         clientService.deleteClient(id);
         return ResponseEntity.noContent().build();
     }

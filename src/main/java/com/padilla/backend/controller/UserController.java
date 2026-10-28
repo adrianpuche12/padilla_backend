@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserController {
 
+    private final com.padilla.backend.service.user.UserLifecycleService userLifecycleService;
+
     private final UserService userService;
 
     // -------------------------------------------------------
@@ -155,6 +157,14 @@ public class UserController {
     public ResponseEntity<Void> deactivateUser(@PathVariable UUID id) {
         userService.deactivateUser(id);
         return ResponseEntity.ok().build();
+    }
+
+    /** PRO-034: los actores que gestionaba {id} pasan a {to} (mismo rol, lo hace un nivel superior). */
+    @PatchMapping("/api/users/{id}/reassign")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<Map<String, Object>> reassign(@PathVariable UUID id, @RequestParam UUID to) {
+        int n = userLifecycleService.reassign(id, to);
+        return ResponseEntity.ok(Map.of("reasignados", n));
     }
 
     @DeleteMapping("/api/users/{id}/permanent")

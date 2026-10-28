@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserService {
 
+    private final UserLifecycleService userLifecycleService;
+
     private final com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
 
     private final UserRepository userRepository;
@@ -121,6 +123,8 @@ public class UserService {
 
         user.setActive(false);
         userRepository.save(user);
+        // PRO-033: efectos de la baja (reasignacion de actores, etc.)
+        userLifecycleService.onDeactivated(user);
         keycloakAdminService.disableUser(user.getEmail());
     }
 
@@ -183,6 +187,7 @@ public class UserService {
 
         user.setActive(true);
         userRepository.save(user);
+        userLifecycleService.onReactivated(user);
         keycloakAdminService.enableUser(user.getEmail());
         return user;
     }
@@ -214,7 +219,7 @@ public class UserService {
         user.setFirstLogin(true);
         user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
         userRepository.save(user);
-        emailService.sendPasswordResetEmail(user.getEmail(), user.getName(), tempPassword);
+        emailService.sendResendAccessEmail(user.getEmail(), user.getName(), tempPassword);
     }
 
     @Transactional
