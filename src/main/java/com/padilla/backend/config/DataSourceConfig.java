@@ -124,6 +124,7 @@ public class DataSourceConfig {
     @Primary
     public PlatformTransactionManager transactionManager(
             @Qualifier("entityManagerFactory") EntityManagerFactory emf) {
-        return new JpaTransactionManager(emf);
+        // PRO-021: fija app.current_agency (SET LOCAL) al iniciar cada transaccion
+        return new AgencyAwareJpaTransactionManager(emf);
     }
 }

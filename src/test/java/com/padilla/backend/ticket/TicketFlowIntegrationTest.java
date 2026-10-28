@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -26,7 +25,6 @@ class TicketFlowIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private TestData data;
-    @Autowired private JdbcTemplate jdbc;
 
     private UUID admin, owner, tenant, provider, property;
 
@@ -79,7 +77,7 @@ class TicketFlowIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EN_PROCESO"))
                 .andExpect(jsonPath("$.providerId").value(provider.toString()));
-        UUID changedBy = jdbc.queryForObject(
+        UUID changedBy = data.db().queryForObject(
                 "SELECT changed_by FROM propero_test.ticket_provider_log WHERE ticket_id = ?", UUID.class, ticket);
         assertThat(changedBy).isEqualTo(admin);
     }
@@ -121,7 +119,7 @@ class TicketFlowIntegrationTest extends AbstractIntegrationTest {
         cambiar(ticket, admin, "ADMIN", "RESUELTA", 200);
         cambiar(ticket, admin, "ADMIN", "CERRADA", 200);
         cambiar(ticket, admin, "ADMIN", "EN_PROCESO", 409); // CERRADA es final
-        Boolean cerrado = jdbc.queryForObject(
+        Boolean cerrado = data.db().queryForObject(
                 "SELECT closed_at IS NOT NULL FROM propero_test.tickets WHERE id = ?", Boolean.class, ticket);
         assertThat(cerrado).isTrue();
     }

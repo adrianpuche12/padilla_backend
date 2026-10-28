@@ -4,7 +4,6 @@ import com.padilla.backend.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,10 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserProvisioningIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
-    private MockMvc mvc;
+    private com.padilla.backend.support.TestData data;
 
     @Autowired
-    private JdbcTemplate jdbc;
+    private MockMvc mvc;
 
     @Test
     void usuarioSoloDeKeycloakQuedaCreadoEnUsers() throws Exception {
@@ -37,7 +36,7 @@ class UserProvisioningIntegrationTest extends AbstractIntegrationTest {
                         .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
 
-        Map<String, Object> fila = jdbc.queryForMap(
+        Map<String, Object> fila = data.db().queryForMap(
                 "SELECT email, name, role, active, first_login FROM propero_test.users WHERE id = ?", sub);
         assertThat(fila.get("email")).isEqualTo("demo.admin@propero.test");
         assertThat(fila.get("name")).isEqualTo("Demo Admin");
@@ -55,7 +54,7 @@ class UserProvisioningIntegrationTest extends AbstractIntegrationTest {
                             .authorities(new SimpleGrantedAuthority("ROLE_TENANT"))))
                     .andExpect(status().isOk());
         }
-        Integer filas = jdbc.queryForObject("SELECT count(*) FROM propero_test.users WHERE id = ?", Integer.class, sub);
+        Integer filas = data.db().queryForObject("SELECT count(*) FROM propero_test.users WHERE id = ?", Integer.class, sub);
         assertThat(filas).isEqualTo(1);
     }
 }

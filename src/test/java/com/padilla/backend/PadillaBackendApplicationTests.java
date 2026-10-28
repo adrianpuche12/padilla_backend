@@ -3,7 +3,6 @@ package com.padilla.backend;
 import com.padilla.backend.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PadillaBackendApplicationTests extends AbstractIntegrationTest {
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private com.padilla.backend.support.TestData data;
 
     @Test
     void contextLoads() {
@@ -22,9 +21,9 @@ class PadillaBackendApplicationTests extends AbstractIntegrationTest {
 
     @Test
     void flywayAplicoLasMigracionesEnElSchemaDelAmbiente() {
-        Integer aplicadas = jdbcTemplate.queryForObject(
+        Integer aplicadas = data.db().queryForObject(
                 "select count(*) from propero_test.flyway_schema_history where success", Integer.class);
-        Integer tablas = jdbcTemplate.queryForObject(
+        Integer tablas = data.db().queryForObject(
                 "select count(*) from information_schema.tables where table_schema = 'propero_test'"
                         + " and table_name in ('users','properties','contracts','tickets','reservas')", Integer.class);
         assertThat(aplicadas).isGreaterThanOrEqualTo(1);
