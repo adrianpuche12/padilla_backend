@@ -47,6 +47,11 @@ class PropertyServiceTest {
 
     @Mock private PropertyRepository propertyRepository;
 
+    @Mock
+
+    private com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
+
+
     @InjectMocks
     private PropertyService propertyService;
 

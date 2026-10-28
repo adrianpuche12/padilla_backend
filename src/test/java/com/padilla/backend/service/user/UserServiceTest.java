@@ -56,6 +56,11 @@ class UserServiceTest {
     @Mock private JdbcTemplate        jdbcTemplate;
     @Mock private EmailService        emailService;
 
+    @Mock
+
+    private com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
+
+
     @InjectMocks
     private UserService userService;
 

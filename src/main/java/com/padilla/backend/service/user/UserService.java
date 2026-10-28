@@ -1,6 +1,7 @@
 package com.padilla.backend.service.user;
 
 
+import com.padilla.backend.exception.ConflictException;
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
 import com.padilla.backend.entity.User;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private final com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
 
     private final UserRepository userRepository;
     private final KeycloakAdminService keycloakAdminService;
@@ -125,6 +128,13 @@ public class UserService {
     public CreateUserResult createUserFull(User user) {
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
+        // PRO-025: limite de usuarios ADMIN del plan. U5: un unico SUPER_ADMIN por inmobiliaria.
+        if (user.getRole() == Role.ADMIN) {
+            agencySettingsService.checkCanAddAdmin();
+        }
+        if (user.getRole() == Role.SUPER_ADMIN && !userRepository.findByRoleIn(List.of(Role.SUPER_ADMIN)).isEmpty()) {
+            throw new ConflictException("La inmobiliaria ya tiene un SUPER_ADMIN");
+        }
 
         String keycloakId = keycloakAdminService.createUser(user.getName(), user.getEmail(), user.getRole());
 
