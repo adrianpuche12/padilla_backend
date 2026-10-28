@@ -16,4 +16,6 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID>, JpaSpec
     List<Reserva> findAllByOrderByCreatedAtDesc();
     List<Reserva> findByOperadorIdOrderByCreatedAtDesc(UUID operadorId);
     List<Reserva> findByStatusOrderByCreatedAtDesc(String status);
+
+    List<Reserva> findByPropertyIdInOrderByCreatedAtDesc(java.util.Collection<UUID> propertyIds);
 }

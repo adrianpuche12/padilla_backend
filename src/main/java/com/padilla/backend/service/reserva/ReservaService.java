@@ -29,6 +29,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ReservaService {
 
+    private final com.padilla.backend.repository.PropertyRepository propertyRepository;
+
     private final com.padilla.backend.service.audit.AuditService auditService;
 
     private final ReservaRepository reservaRepository;
@@ -46,6 +48,11 @@ public class ReservaService {
             return reservaRepository.findAllByOrderByCreatedAtDesc();
         }
         UUID callerId = CurrentUser.id();
+        // PRO-082 (C21): el propietario ve las reservas de SUS propiedades
+        if (callerRole == Role.OWNER) {
+            List<UUID> mias = propertyRepository.findByOwnerId(callerId).stream().map(p -> p.getId()).toList();
+            return mias.isEmpty() ? List.of() : reservaRepository.findByPropertyIdInOrderByCreatedAtDesc(mias);
+        }
         return reservaRepository.findByOperadorIdOrderByCreatedAtDesc(callerId);
     }
 
@@ -54,6 +61,10 @@ public class ReservaService {
         Optional<Reserva> reserva = reservaRepository.findById(id);
         if (isAdmin(callerRole)) return reserva;
         UUID callerId = CurrentUser.id();
+        if (callerRole == Role.OWNER) {
+            return reserva.filter(r -> r.getPropertyId() != null && propertyRepository.findById(r.getPropertyId())
+                    .map(p -> callerId.equals(p.getOwnerId())).orElse(false));
+        }
         return reserva.filter(r -> callerId.equals(r.getOperadorId()));
     }
 

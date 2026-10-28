@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReservaController {
 
+    private final com.padilla.backend.service.reserva.ReservaDocumentService documentService;
+
     private final com.padilla.backend.repository.ReservaRepository reservaRepository;
 
     private final ReservaService reservaService;
@@ -80,6 +82,32 @@ public class ReservaController {
         String newStatus = body.get("status");
         Reserva updated = reservaService.updateStatus(id, newStatus);
         return ResponseEntity.ok(toDTO(updated, List.of()));
+    }
+
+    /** PRO-082: datos para los documentos FC1/FC10/CTR (reserva + agencia). */
+    @GetMapping("/{id}/documents")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER')")
+    public java.util.Map<String, Object> documents(@PathVariable UUID id) {
+        return documentService.documentData(id);
+    }
+
+    /** PRO-083: documento en PDF generado en el servidor (fc1, fc10, ctr). */
+    @GetMapping("/{id}/pdf/{doc}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER')")
+    public ResponseEntity<byte[]> pdf(@PathVariable UUID id, @PathVariable String doc) {
+        return ResponseEntity.ok().contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.inline().filename(doc.toUpperCase() + "-" + id + ".pdf").build().toString())
+                .body(documentService.pdf(id, doc));
+    }
+
+    /** PRO-082: contrato precargado desde una reserva APROBADA. */
+    @PostMapping("/{id}/contract")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> contract(@PathVariable UUID id,
+            @RequestBody com.padilla.backend.service.reserva.ReservaDocumentService.ContractFromReserva req) {
+        var c = documentService.createContract(id, req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of("contractId", c.getId(), "status", c.getStatus()));
     }
 
     @DeleteMapping("/{id}")
