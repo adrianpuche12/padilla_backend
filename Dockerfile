@@ -11,7 +11,9 @@ RUN ./mvnw clean package -DskipTests -B
 # Stage 2 — Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S padilla && adduser -S padilla -G padilla
+RUN addgroup -S padilla && adduser -S padilla -G padilla \n    && mkdir -p /app/files && chown padilla:padilla /app/files
+# PRO-046: adjuntos en /app/files (montar un volumen en produccion)
+VOLUME /app/files
 COPY --from=build /app/target/*.jar app.jar
 RUN chown padilla:padilla app.jar
 USER padilla

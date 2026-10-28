@@ -30,6 +30,11 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
 public class PropertyController {
 
+    private final com.padilla.backend.repository.TicketRepository ticketRepository;
+    private final com.padilla.backend.repository.ContractRepository contractRepository;
+
+    private final com.padilla.backend.repository.UserRepository userRepository;
+
     private final com.padilla.backend.repository.PropertyRepository propertyRepository;
 
     private final PropertyService propertyService;
@@ -59,6 +64,42 @@ public class PropertyController {
         return propertyService.findById(id)
                 .map(p -> ResponseEntity.ok(toDTO(p)))
                 .orElseThrow(() -> new NotFoundException("Propiedad no encontrada"));
+    }
+
+    /**
+     * PRO-047: historial de la propiedad: contratos (con inquilino) y tickets, del mas reciente al mas viejo.
+     * Mismo acceso que ver la propiedad.
+     */
+    @GetMapping("/{id}/history")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER')")
+    public java.util.Map<String, Object> history(@PathVariable UUID id) {
+        propertyService.findById(id).orElseThrow(() -> new NotFoundException("Propiedad no encontrada"));
+        java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+        r.put("contracts", contractRepository.findByPropertyId(id).stream()
+                .sorted(java.util.Comparator.comparing(com.padilla.backend.entity.Contract::getStartDate).reversed())
+                .map(c -> {
+                    java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", c.getId());
+                    m.put("status", c.getStatus());
+                    m.put("startDate", c.getStartDate());
+                    m.put("endDate", c.getEndDate());
+                    m.put("monthlyAmount", c.getMonthlyAmount());
+                    m.put("tenantId", c.getTenantId());
+                    m.put("tenantName", userRepository.findById(c.getTenantId()).map(u -> u.getName()).orElse(null));
+                    return m;
+                }).toList());
+        r.put("tickets", ticketRepository.findByPropertyIdOrderByCreatedAtDesc(id).stream().map(t -> {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("id", t.getId());
+            m.put("ticketNumber", t.getTicketNumber());
+            m.put("title", t.getTitle());
+            m.put("category", t.getCategory());
+            m.put("status", t.getStatus());
+            m.put("createdAt", t.getCreatedAt());
+            m.put("closedAt", t.getClosedAt());
+            return m;
+        }).toList());
+        return r;
     }
 
     @PostMapping
