@@ -68,6 +68,15 @@ class UserServiceTest {
 
 
 
+    @Mock
+
+
+
+    private com.padilla.backend.service.audit.AuditService auditService;
+
+
+
+
     @InjectMocks
     private UserService userService;
 

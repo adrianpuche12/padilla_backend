@@ -53,6 +53,11 @@ class ContractServiceTest {
     @Mock private ContractPeriodRepository contractPeriodRepository;
     @Mock private PropertyService          propertyService;
 
+    @Mock
+
+    private com.padilla.backend.service.audit.AuditService auditService;
+
+
     @InjectMocks
     private ContractService contractService;
 

@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ClientService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final com.padilla.backend.service.user.UserLifecycleService userLifecycleService;
 
     private final UserRepository userRepository;
@@ -196,6 +198,7 @@ public class ClientService {
         userRepository.save(user);
         // PRO-033: efectos de la baja segun el rol (tickets, contratos)
         userLifecycleService.onDeactivated(user);
+        auditService.record("USUARIO_DESACTIVADO", "USUARIO", user.getId(), user.getRole() + " " + user.getEmail());
         keycloakAdminService.disableUser(user.getEmail());
     }
 
@@ -207,6 +210,8 @@ public class ClientService {
 
         Role callerRole = CurrentUser.role();
         validateCanManage(callerRole, user.getRole());
+
+        auditService.record("USUARIO_ELIMINADO", "USUARIO", user.getId(), user.getRole() + " " + user.getEmail());
 
         // 1. Eliminar perfil extendido
         clientProfileRepository.findByUserId(id).ifPresent(clientProfileRepository::delete);
@@ -230,6 +235,7 @@ public class ClientService {
         user.setActive(true);
         userRepository.save(user);
         userLifecycleService.onReactivated(user);
+        auditService.record("USUARIO_REACTIVADO", "USUARIO", user.getId(), user.getRole() + " " + user.getEmail());
         keycloakAdminService.enableUser(user.getEmail());
         return toDTO(user);
     }

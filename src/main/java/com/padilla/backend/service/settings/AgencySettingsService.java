@@ -29,6 +29,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgencySettingsService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final AgencySettingsRepository settingsRepository;
     private final AgencyRepository agencyRepository;
     private final JdbcTemplate jdbc;
@@ -87,6 +89,7 @@ public class AgencySettingsService {
         if (dto.getEmailDesdeHora() != null) s.setEmailDesdeHora(dto.getEmailDesdeHora().shortValue());
         if (dto.getEmailHastaHora() != null) s.setEmailHastaHora(dto.getEmailHastaHora().shortValue());
         s.setUpdatedBy(CurrentUser.id());
+        auditService.record("CONFIGURACION_EDITADA", "AGENCIA", s.getAgencyId(), null);
         return settingsRepository.save(s);
     }
 

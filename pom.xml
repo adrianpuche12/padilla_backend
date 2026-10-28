@@ -91,6 +91,17 @@
 		</dependency>
 
 		<!-- Spring Data JPA -->
+		<!-- PRO-072: exportacion de reportes a Excel y PDF -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.3.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.librepdf</groupId>
+			<artifactId>openpdf</artifactId>
+			<version>2.0.3</version>
+		</dependency>
 		<!-- PRO-003: migraciones de schema con Flyway -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>

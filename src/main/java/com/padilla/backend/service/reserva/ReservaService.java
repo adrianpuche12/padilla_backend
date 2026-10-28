@@ -29,6 +29,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ReservaService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final ReservaRepository reservaRepository;
     private final ReservaGaranteRepository reservaGaranteRepository;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -135,6 +137,7 @@ public class ReservaService {
             throw new ConflictException("No se puede pasar una reserva de " + current + " a " + target
                     + ". Estados posibles: " + current.nextStates());
         }
+        auditService.record("RESERVA_ESTADO", "RESERVA", reserva.getId(), current + " -> " + target);
         reserva.setStatus(target.name());
         return reservaRepository.save(reserva);
     }

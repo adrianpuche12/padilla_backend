@@ -35,6 +35,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserLifecycleService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final JdbcTemplate jdbc;
     private final UserRepository userRepository;
 
@@ -99,6 +101,7 @@ public class UserLifecycleService {
         if (!CurrentUser.role().canManage(from.getRole())) {
             throw new RbacException("El rol " + CurrentUser.role() + " no puede reasignar actores de un " + from.getRole());
         }
+        auditService.record("ACTORES_REASIGNADOS", "USUARIO", from.getId(), "de " + from.getEmail() + " a " + to.getEmail());
         return reassignManaged(from, to);
     }
 

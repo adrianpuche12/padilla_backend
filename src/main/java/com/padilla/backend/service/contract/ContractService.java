@@ -26,6 +26,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ContractService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final ContractRepository contractRepository;
     private final ContractPeriodRepository contractPeriodRepository;
     private final PropertyService propertyService;
@@ -144,6 +146,7 @@ public class ContractService {
         contractRepository.save(contract);
 
         // Limpiar el tenantId de la propiedad
+        auditService.record("CONTRATO_RESCINDIDO", "CONTRATO", contract.getId(), null);
         propertyService.clearTenant(contract.getPropertyId());
     }
 
