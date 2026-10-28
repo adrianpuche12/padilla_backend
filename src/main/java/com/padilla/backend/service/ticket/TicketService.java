@@ -321,6 +321,10 @@ public class TicketService {
         if (internal && !callerRole.isManagement()) {
             throw new RbacException("Solo la inmobiliaria puede dejar comentarios internos");
         }
+        // PRO-064: los actores no comparten datos de contacto; la inmobiliaria intermedia
+        if (!callerRole.isManagement()) {
+            com.padilla.backend.service.notification.ContactInfoGuard.requireNoContactInfo(content);
+        }
 
         TicketComment comment = new TicketComment();
         comment.setTicketId(ticketId);
