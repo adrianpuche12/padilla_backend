@@ -1,5 +1,10 @@
 package com.padilla.backend.controller;
 
+import com.padilla.backend.service.listing.Listings;
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import com.padilla.backend.util.Paging;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.ticket.CreateTicketRequest;
@@ -33,8 +38,26 @@ public class TicketController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT', 'PROVIDER')")
-    public ResponseEntity<List<TicketDTO>> getTickets(
-            @RequestParam(required = false) TicketStatus status) {
+    public ResponseEntity<?> getTickets(
+            @RequestParam(required = false) TicketStatus status,
+            @RequestParam(required = false) com.padilla.backend.enums.TicketPriority priority,
+            @RequestParam(required = false) com.padilla.backend.enums.TicketCategory category,
+            @RequestParam(required = false) UUID propertyId,
+            @RequestParam(required = false) UUID providerId,
+            @RequestParam(required = false) java.time.LocalDate from,
+            @RequestParam(required = false) java.time.LocalDate to,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String q) {
+        // PRO-040 / PRO-051: con ?page= devuelve una pagina filtrada (server-side); sin page, como antes
+        if (page != null) {
+            return ResponseEntity.ok(PageResponse.of(ticketService.page(
+                    new Listings.TicketFilter(status, priority, category, propertyId, providerId, from, to, q),
+                    Paging.request(page, size, sort, Set.of("createdAt", "ticketNumber", "priority", "status", "updatedAt"),
+                            Sort.by(Sort.Direction.DESC, "createdAt"))),
+                    this::toDTO));
+        }
         List<Ticket> tickets = ticketService.findAll(status);
         return ResponseEntity.ok(tickets.stream().map(this::toDTO).collect(Collectors.toList()));
     }

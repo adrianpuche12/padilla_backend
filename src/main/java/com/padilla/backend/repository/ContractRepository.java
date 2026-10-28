@@ -1,5 +1,6 @@
 package com.padilla.backend.repository;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import com.padilla.backend.entity.Contract;
 import com.padilla.backend.enums.ContractStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Repository
 // PRO-021: toda consulta corre en una transaccion, asi el transaction manager fija la agencia (RLS)
 @Transactional(readOnly = true)
-public interface ContractRepository extends JpaRepository<Contract, UUID> {
+public interface ContractRepository extends JpaRepository<Contract, UUID>, JpaSpecificationExecutor<Contract> {
 
     List<Contract> findByPropertyId(UUID propertyId);
 

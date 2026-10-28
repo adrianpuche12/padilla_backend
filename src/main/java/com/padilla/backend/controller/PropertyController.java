@@ -1,5 +1,10 @@
 package com.padilla.backend.controller;
 
+import com.padilla.backend.service.listing.Listings;
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import com.padilla.backend.util.Paging;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.property.CreatePropertyRequest;
@@ -25,11 +30,26 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER', 'TENANT')")
 public class PropertyController {
 
+    private final com.padilla.backend.repository.PropertyRepository propertyRepository;
+
     private final PropertyService propertyService;
 
     @GetMapping
-    public ResponseEntity<List<PropertyDTO>> getProperties(
-            @RequestParam(required = false) PropertyStatus status) {
+    public ResponseEntity<?> getProperties(
+            @RequestParam(required = false) PropertyStatus status,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) UUID ownerId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String q) {
+        // PRO-040: con ?page= devuelve una pagina (server-side); sin page, la lista completa como antes
+        if (page != null) {
+            return ResponseEntity.ok(PageResponse.of(propertyRepository.findAll(
+                    Listings.properties(status, active, ownerId, q),
+                    Paging.request(page, size, sort, Set.of("address", "city", "createdAt", "status"), Sort.by("address"))),
+                    this::toDTO));
+        }
         List<Property> properties = propertyService.findAll(status);
         return ResponseEntity.ok(properties.stream().map(this::toDTO).collect(Collectors.toList()));
     }

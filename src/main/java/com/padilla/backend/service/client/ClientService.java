@@ -1,5 +1,10 @@
 package com.padilla.backend.service.client;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
+import com.padilla.backend.exception.BadRequestException;
+import com.padilla.backend.service.listing.Listings;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.security.CurrentUser;
@@ -231,8 +236,29 @@ public class ClientService {
 
     // --- Helpers privados ---
 
+    /**
+     * PRO-040: listado paginado con busqueda por nombre, email, documento o CUIT. Los perfiles de la
+     * pagina se traen en un solo query (antes toDTO hacia un query por fila).
+     */
+    public PageResponse<ClientDTO> page(Role role, Boolean active, String q, Pageable pageable) {
+        if (role != null && !CLIENT_ROLES.contains(role)) {
+            throw new BadRequestException("Rol de cliente invalido: " + role);
+        }
+        // sin rol: propietarios e inquilinos (los proveedores tienen su pantalla, ?role=PROVIDER)
+        Page<User> users = userRepository.findAll(
+                Listings.users(List.of(Role.OWNER, Role.TENANT), role, active, q), pageable);
+        Map<UUID, ClientProfile> perfiles = clientProfileRepository
+                .findByUserIdIn(users.getContent().stream().map(User::getId).toList()).stream()
+                .collect(Collectors.toMap(ClientProfile::getUserId, cp -> cp, (a, b) -> a));
+        return PageResponse.ofMapped(users, users.getContent().stream()
+                .map(u -> toDTO(u, perfiles.get(u.getId()))).toList());
+    }
+
     private ClientDTO toDTO(User user) {
-        ClientProfile profile = clientProfileRepository.findByUserId(user.getId()).orElse(null);
+        return toDTO(user, clientProfileRepository.findByUserId(user.getId()).orElse(null));
+    }
+
+    private ClientDTO toDTO(User user, ClientProfile profile) {
         return new ClientDTO(
                 user.getId(),
                 user.getName(),

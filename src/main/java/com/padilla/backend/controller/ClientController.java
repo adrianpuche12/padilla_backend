@@ -1,5 +1,9 @@
 package com.padilla.backend.controller;
 
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import com.padilla.backend.util.Paging;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.client.ClientDTO;
@@ -28,8 +32,18 @@ public class ClientController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
-    public ResponseEntity<List<ClientDTO>> getClients(
-            @RequestParam(required = false) Role role) {
+    public ResponseEntity<?> getClients(
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String q) {
+        // PRO-040: con ?page= devuelve una pagina (server-side); sin page, la lista completa como antes
+        if (page != null) {
+            return ResponseEntity.ok(clientService.page(role, active, q, Paging.request(page, size, sort,
+                    Set.of("name", "email", "createdAt"), Sort.by("name"))));
+        }
         List<ClientDTO> clients = (role != null)
                 ? clientService.findByRole(role)
                 : clientService.findAll();
