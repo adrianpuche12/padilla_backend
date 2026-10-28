@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER','TENANT')")
 public class ContractController {
 
+    private final com.padilla.backend.service.contract.ContractPeriodService contractPeriodService;
+
     private final com.padilla.backend.repository.ContractRepository contractRepository;
 
     private final ContractService contractService;
@@ -119,6 +121,17 @@ public class ContractController {
     public ResponseEntity<Void> terminateContract(@PathVariable UUID id) {
         contractService.terminate(id);
         return ResponseEntity.ok().build();
+    }
+
+    public record NewPeriodRequest(java.time.LocalDate periodFrom, java.math.BigDecimal rentAmount,
+                                   java.math.BigDecimal adjustmentIndex) {}
+
+    /** PRO-045: agrega un periodo (ajuste por monto o por coeficiente). */
+    @PostMapping("/{id}/periods")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<ContractPeriodDTO> addPeriod(@PathVariable UUID id, @RequestBody NewPeriodRequest req) {
+        ContractPeriod p = contractPeriodService.addPeriod(id, req.periodFrom(), req.rentAmount(), req.adjustmentIndex());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(toPeriodDTO(p));
     }
 
     @GetMapping("/{id}/periods")
