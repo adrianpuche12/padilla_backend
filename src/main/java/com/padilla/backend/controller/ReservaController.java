@@ -1,5 +1,10 @@
 package com.padilla.backend.controller;
 
+import com.padilla.backend.service.listing.Listings;
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import com.padilla.backend.util.Paging;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.reserva.CreateReservaRequest;
@@ -25,12 +30,25 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReservaController {
 
+    private final com.padilla.backend.repository.ReservaRepository reservaRepository;
+
     private final ReservaService reservaService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER')")
-    public ResponseEntity<List<ReservaDTO>> getReservas(
-            @RequestParam(required = false) String status) {
+    public ResponseEntity<?> getReservas(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String q) {
+        // PRO-040: con ?page= devuelve una pagina (server-side); sin page, la lista completa como antes
+        if (page != null) {
+            String st = status == null ? null : com.padilla.backend.enums.ReservaStatus.parse(status).name();
+            return ResponseEntity.ok(PageResponse.of(reservaRepository.findAll(Listings.reservas(st, q),
+                    Paging.request(page, size, sort, Set.of("createdAt", "apellido", "monto"), Sort.by(Sort.Direction.DESC, "createdAt"))),
+                    r -> toDTO(r, List.of())));
+        }
         List<Reserva> reservas = reservaService.findAll(status);
         return ResponseEntity.ok(reservas.stream().map(r -> toDTO(r, List.of())).collect(Collectors.toList()));
     }

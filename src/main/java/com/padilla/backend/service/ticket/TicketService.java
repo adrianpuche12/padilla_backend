@@ -61,6 +61,13 @@ public class TicketService {
         return status == null ? tickets : tickets.stream().filter(t -> t.getStatus() == status).toList();
     }
 
+    /** PRO-040 / PRO-051: pagina de tickets con filtros, con la misma visibilidad por rol que findAll. */
+    public org.springframework.data.domain.Page<Ticket> page(com.padilla.backend.service.listing.Listings.TicketFilter filter,
+                                                             org.springframework.data.domain.Pageable pageable) {
+        List<UUID> owned = CurrentUser.role() == Role.OWNER ? ownedPropertyIds(CurrentUser.id()) : List.of();
+        return ticketRepository.findAll(com.padilla.backend.service.listing.Listings.tickets(filter, owned), pageable);
+    }
+
     public Optional<Ticket> findById(UUID id) {
         Role callerRole = CurrentUser.role();
         Optional<Ticket> ticket = ticketRepository.findById(id);

@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserController {
 
+    private final com.padilla.backend.repository.UserRepository userRepository;
+
     private final com.padilla.backend.service.user.UserLifecycleService userLifecycleService;
 
     private final UserService userService;
@@ -77,9 +79,28 @@ public class UserController {
 
     @GetMapping("/api/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'SUPER_ADMIN')")
-    public ResponseEntity<List<UserDTO>> getUsers(
+    public ResponseEntity<?> getUsers(
             @RequestParam(required = false) Role role,
-            @RequestParam(required = false) String scope) {
+            @RequestParam(required = false) String scope,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String q) {
+
+        // PRO-040: pagina de usuarios de sistema con busqueda
+        if ("system".equalsIgnoreCase(scope) && page != null) {
+            com.padilla.backend.security.CurrentUser.requireManagement();
+            var pagina = userRepository.findAll(com.padilla.backend.service.listing.Listings.users(
+                            List.of(Role.SUPER_ADMIN, Role.MANAGER, Role.ADMIN), role, active, q),
+                    com.padilla.backend.util.Paging.request(page, size, sort, java.util.Set.of("name", "email", "role", "createdAt"),
+                            org.springframework.data.domain.Sort.by("name")));
+            return ResponseEntity.ok(com.padilla.backend.dto.PageResponse.of(pagina, u -> {
+                UserDTO dto = toDTO(u);
+                dto.setCanManage(userService.canManage(u));
+                return dto;
+            }));
+        }
 
         // PRO-013: ?scope=system = usuarios de sistema con canManage por fila (pantalla Usuarios)
         if ("system".equalsIgnoreCase(scope)) {

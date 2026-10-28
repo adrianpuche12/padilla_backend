@@ -1,5 +1,10 @@
 package com.padilla.backend.controller;
 
+import com.padilla.backend.service.listing.Listings;
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import com.padilla.backend.util.Paging;
+import com.padilla.backend.dto.PageResponse;
 
 import com.padilla.backend.exception.NotFoundException;
 import com.padilla.backend.dto.contract.ContractDTO;
@@ -27,12 +32,28 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'OWNER','TENANT')")
 public class ContractController {
 
+    private final com.padilla.backend.repository.ContractRepository contractRepository;
+
     private final ContractService contractService;
 
     @GetMapping
-    public ResponseEntity<List<ContractDTO>> getContracts(
+    public ResponseEntity<?> getContracts(
             @RequestParam(required = false) ContractStatus status,
-            @RequestParam(required = false) UUID propertyId) {
+            @RequestParam(required = false) UUID propertyId,
+            @RequestParam(required = false) UUID ownerId,
+            @RequestParam(required = false) UUID tenantId,
+            @RequestParam(required = false) java.time.LocalDate endsBefore,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort) {
+        // PRO-040: con ?page= devuelve una pagina (server-side); sin page, la lista completa como antes
+        if (page != null) {
+            return ResponseEntity.ok(PageResponse.of(contractRepository.findAll(
+                    Listings.contracts(status, propertyId, ownerId, tenantId, endsBefore),
+                    Paging.request(page, size, sort, Set.of("startDate", "endDate", "monthlyAmount", "createdAt"),
+                            Sort.by(Sort.Direction.DESC, "startDate"))),
+                    this::toDTO));
+        }
         List<Contract> contracts = contractService.findAll(status, propertyId);
         return ResponseEntity.ok(contracts.stream().map(this::toDTO).collect(Collectors.toList()));
     }
