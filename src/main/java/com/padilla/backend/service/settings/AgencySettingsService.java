@@ -144,6 +144,7 @@ public class AgencySettingsService {
         d.setMontoCritico(s.getMontoCritico());
         d.setEmailDesdeHora((int) s.getEmailDesdeHora());
         d.setEmailHastaHora((int) s.getEmailHastaHora());
+        d.setLeadsEnabled(s.isLeadsEnabled());
         d.setUpdatedAt(s.getUpdatedAt());
         return d;
     }

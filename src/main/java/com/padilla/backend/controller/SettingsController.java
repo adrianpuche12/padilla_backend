@@ -47,6 +47,40 @@ public class SettingsController {
         return settingsService.toDTO(settingsService.update(dto), settingsService.currentAgency());
     }
 
+    /** PRO-084: reglas operativas de la agencia (SLA, monto critico, horario de mails, tipos obligatorios). */
+    @GetMapping("/api/settings/rules")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public Map<String, Object> getRules() {
+        return rules(settingsService.current());
+    }
+
+    public record RulesRequest(@jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(720) Integer slaHoras,
+                               @jakarta.validation.constraints.DecimalMin("0") java.math.BigDecimal montoCritico,
+                               @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(23) Integer emailDesdeHora,
+                               @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(24) Integer emailHastaHora) {}
+
+    @PutMapping("/api/settings/rules")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> updateRules(@Valid @RequestBody RulesRequest req) {
+        AgencySettingsDTO dto = settingsService.toDTO(settingsService.current(), settingsService.currentAgency());
+        if (req.slaHoras() != null) dto.setSlaHoras(req.slaHoras());
+        dto.setMontoCritico(req.montoCritico());
+        if (req.emailDesdeHora() != null) dto.setEmailDesdeHora(req.emailDesdeHora());
+        if (req.emailHastaHora() != null) dto.setEmailHastaHora(req.emailHastaHora());
+        return rules(settingsService.update(dto));
+    }
+
+    private static Map<String, Object> rules(com.padilla.backend.entity.AgencySettings s) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("slaHoras", s.getSlaHoras());
+        r.put("montoCritico", s.getMontoCritico());
+        r.put("emailDesdeHora", s.getEmailDesdeHora());
+        r.put("emailHastaHora", s.getEmailHastaHora());
+        r.put("tiposObligatorios", java.util.Arrays.stream(com.padilla.backend.enums.NotificationType.values())
+                .filter(com.padilla.backend.enums.NotificationType::isMandatory).map(Enum::name).toList());
+        return r;
+    }
+
     /** PRO-025: plan actual y sus limites. */
     @GetMapping("/api/settings/plan")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")

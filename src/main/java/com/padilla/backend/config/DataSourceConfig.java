@@ -120,6 +120,17 @@ public class DataSourceConfig {
 
     private static final String LEGACY_PACKAGE = "com.padilla.backend.entity.legacy.";
 
+    /**
+     * PRO-081: JdbcTemplate de la base principal, declarado a mano. Al existir legacyJdbcTemplate,
+     * Spring Boot deja de crear el suyo y todo el codigo terminaria usando la base legacy (fuera de la
+     * transaccion con SET LOCAL de la agencia).
+     */
+    @Bean
+    @Primary
+    public org.springframework.jdbc.core.JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+    }
+
     @Bean
     @Primary
     public PlatformTransactionManager transactionManager(

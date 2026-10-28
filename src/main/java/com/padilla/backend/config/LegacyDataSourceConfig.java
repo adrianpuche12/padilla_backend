@@ -64,6 +64,12 @@ public class LegacyDataSourceConfig {
         return em;
     }
 
+    /** PRO-081: consultas directas a la base legacy (tablas sin entidad, como satisfaction_dashboard). */
+    @Bean
+    public org.springframework.jdbc.core.JdbcTemplate legacyJdbcTemplate(@Qualifier("legacyDataSource") DataSource dataSource) {
+        return new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+    }
+
     @Bean
     public PlatformTransactionManager legacyTransactionManager(
             @Qualifier("legacyEntityManagerFactory") EntityManagerFactory

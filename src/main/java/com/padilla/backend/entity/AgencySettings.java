@@ -48,6 +48,8 @@ public class AgencySettings {
     @Column(name = "monto_critico") private BigDecimal montoCritico;
     @Column(name = "email_desde_hora", nullable = false) private short emailDesdeHora = 8;
     @Column(name = "email_hasta_hora", nullable = false) private short emailHastaHora = 20;
+    /** PRO-080: la agencia tiene el modulo de leads (base legacy de n8n). */
+    @Column(name = "leads_enabled", nullable = false) private boolean leadsEnabled;
     @Column(name = "updated_at", nullable = false) private OffsetDateTime updatedAt;
     @Column(name = "updated_by") private UUID updatedBy;
 

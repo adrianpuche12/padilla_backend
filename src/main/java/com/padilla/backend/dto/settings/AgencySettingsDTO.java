@@ -42,5 +42,7 @@ public class AgencySettingsDTO {
     @DecimalMin("0") private BigDecimal montoCritico;
     @Min(0) @Max(23) private Integer emailDesdeHora;
     @Min(1) @Max(24) private Integer emailHastaHora;
+    /** Solo lectura: lo habilita la plataforma. */
+    private Boolean leadsEnabled;
     private OffsetDateTime updatedAt;
 }
