@@ -30,4 +30,13 @@ public class CreateTicketRequest {
      * Si falta, se toma el inquilino del contrato activo de la propiedad.
      */
     private UUID tenantId;
+
+    /** PRO-051: metadata del modo de carga (opcional). */
+    private com.padilla.backend.enums.TicketLoadMode modoCarga;
+
+    @jakarta.validation.constraints.PositiveOrZero
+    private Integer tiempoCargaSegundos;
+
+    @jakarta.validation.constraints.Pattern(regexp = "^(iOS|Android|Web)$", message = "dispositivo: iOS, Android o Web")
+    private String dispositivo;
 }

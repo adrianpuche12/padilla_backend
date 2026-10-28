@@ -86,6 +86,10 @@ public class TicketController {
         ticket.setCategory(request.getCategory());
         ticket.setPriority(request.getPriority() != null ? request.getPriority() : TicketPriority.NORMAL);
         ticket.setPropertyId(request.getPropertyId());
+        // PRO-051: metadata del modo de carga (el backend no depende del modo: mismo POST)
+        if (request.getModoCarga() != null) ticket.setModoCarga(request.getModoCarga().name());
+        ticket.setTiempoCargaSegundos(request.getTiempoCargaSegundos());
+        ticket.setDispositivo(request.getDispositivo());
 
         Ticket created = ticketService.create(ticket, request.getTenantId());
         return ResponseEntity.status(HttpStatus.CREATED).body(toDTO(created));
@@ -128,6 +132,24 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.suggestedProviders(id));
     }
 
+    public record ScheduleRequest(java.time.OffsetDateTime scheduledAt) {}
+
+    /** PRO-054: fecha de visita acordada (personal o proveedor asignado). Avisa al inquilino. */
+    @PatchMapping("/{id}/schedule")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'PROVIDER')")
+    public ResponseEntity<TicketDTO> schedule(@PathVariable UUID id, @RequestBody ScheduleRequest req) {
+        return ResponseEntity.ok(toDTO(ticketService.schedule(id, req.scheduledAt())));
+    }
+
+    public record CostRequest(java.math.BigDecimal costoFinal) {}
+
+    /** PRO-054: costo final del trabajo. */
+    @PatchMapping("/{id}/cost")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'PROVIDER')")
+    public ResponseEntity<TicketDTO> cost(@PathVariable UUID id, @RequestBody CostRequest req) {
+        return ResponseEntity.ok(toDTO(ticketService.setFinalCost(id, req.costoFinal())));
+    }
+
     @GetMapping("/{id}/provider-history")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
     public ResponseEntity<List<TicketProviderLogDTO>> getProviderHistory(@PathVariable UUID id) {
@@ -159,7 +181,12 @@ public class TicketController {
                 t.getRejectionReason(),
                 t.getCreatedAt(),
                 t.getUpdatedAt(),
-                t.getClosedAt()
+                t.getClosedAt(),
+                t.getModoCarga(),
+                t.getTiempoCargaSegundos(),
+                t.getDispositivo(),
+                t.getScheduledAt(),
+                t.getCostoFinal()
         );
     }
 

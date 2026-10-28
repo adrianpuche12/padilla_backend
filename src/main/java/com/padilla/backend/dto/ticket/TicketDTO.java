@@ -28,4 +28,10 @@ public class TicketDTO {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private OffsetDateTime closedAt;
+    // PRO-051 / PRO-054
+    private String modoCarga;
+    private Integer tiempoCargaSegundos;
+    private String dispositivo;
+    private OffsetDateTime scheduledAt;
+    private java.math.BigDecimal costoFinal;
 }
