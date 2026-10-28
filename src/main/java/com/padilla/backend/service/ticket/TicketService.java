@@ -247,6 +247,46 @@ public class TicketService {
                 .toList();
     }
 
+    /** PRO-054: fecha de visita. La fija el personal o el proveedor asignado; el ticket no puede estar terminado. */
+    @Transactional
+    public Ticket schedule(UUID ticketId, java.time.OffsetDateTime when) {
+        Ticket ticket = requireEditableByStaffOrProvider(ticketId);
+        if (when == null || when.isBefore(java.time.OffsetDateTime.now().minusHours(1))) {
+            throw new BadRequestException("La fecha de visita tiene que ser futura");
+        }
+        ticket.setScheduledAt(when);
+        Ticket saved = ticketRepository.save(ticket);
+        events.publishEvent(new TicketEvents.Scheduled(saved));
+        return saved;
+    }
+
+    /** PRO-054: costo final del trabajo (para analytics y reportes de costos). */
+    @Transactional
+    public Ticket setFinalCost(UUID ticketId, java.math.BigDecimal costo) {
+        if (costo == null || costo.signum() < 0) {
+            throw new BadRequestException("El costo final tiene que ser 0 o mayor");
+        }
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+        if (!CurrentUser.isManagement() && !(CurrentUser.role() == Role.PROVIDER && CurrentUser.id().equals(ticket.getProviderId()))) {
+            throw new RbacException("Solo la inmobiliaria o el proveedor asignado cargan el costo final");
+        }
+        ticket.setCostoFinal(costo);
+        return ticketRepository.save(ticket);
+    }
+
+    private Ticket requireEditableByStaffOrProvider(UUID ticketId) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+        if (!CurrentUser.isManagement() && !(CurrentUser.role() == Role.PROVIDER && CurrentUser.id().equals(ticket.getProviderId()))) {
+            throw new RbacException("Solo la inmobiliaria o el proveedor asignado pueden hacer esto");
+        }
+        if (ticket.getStatus().isFinal()) {
+            throw new ConflictException("El ticket esta " + ticket.getStatus());
+        }
+        return ticket;
+    }
+
     public List<TicketProviderLog> getProviderHistory(UUID ticketId) {
         CurrentUser.requireManagement();
         ticketRepository.findById(ticketId)

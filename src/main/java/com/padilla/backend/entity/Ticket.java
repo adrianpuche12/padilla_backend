@@ -74,4 +74,23 @@ public class Ticket {
     protected void onUpdate() {
         this.updatedAt = OffsetDateTime.now();
     }
+
+    /** PRO-051: como se cargo el ticket (FORMULARIO, VOZ_GUIADA, ASISTENTE_IA). */
+    @Column(name = "modo_carga", nullable = false)
+    private String modoCarga = "FORMULARIO";
+
+    @Column(name = "tiempo_carga_segundos")
+    private Integer tiempoCargaSegundos;
+
+    /** iOS, Android o Web. */
+    @Column(name = "dispositivo")
+    private String dispositivo;
+
+    /** PRO-054: fecha de visita acordada (siempre coordinada por la plataforma). */
+    @Column(name = "scheduled_at")
+    private OffsetDateTime scheduledAt;
+
+    /** PRO-054: costo final del trabajo (para analytics). */
+    @Column(name = "costo_final")
+    private java.math.BigDecimal costoFinal;
 }

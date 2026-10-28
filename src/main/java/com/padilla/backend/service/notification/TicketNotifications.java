@@ -95,6 +95,15 @@ public class TicketNotifications {
                 "Hay un mensaje nuevo en el ticket " + numero(t) + ".", REF, t.getId()).inAppOnly());
     }
 
+    @EventListener
+    public void onScheduled(TicketEvents.Scheduled e) {
+        Ticket t = e.ticket();
+        String cuando = t.getScheduledAt().atZoneSameInstant(java.time.ZoneId.of("America/Argentina/Buenos_Aires"))
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        notifications.notify(t.getTenantId(), Notice.of(NotificationType.TICKET_ASIGNADO, "Visita coordinada " + numero(t),
+                "La inmobiliaria coordinó la visita para tu pedido \"" + t.getTitle() + "\" el " + cuando + ".", REF, t.getId()));
+    }
+
     private Optional<UUID> owner(Ticket t) {
         return propertyRepository.findById(t.getPropertyId()).map(p -> p.getOwnerId());
     }

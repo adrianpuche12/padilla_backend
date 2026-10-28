@@ -18,4 +18,6 @@ public final class TicketEvents {
     public record ProviderAssigned(Ticket ticket, UUID oldProviderId) {}
 
     public record CommentAdded(Ticket ticket, UUID authorId, boolean internal) {}
+
+    public record Scheduled(Ticket ticket) {}
 }
