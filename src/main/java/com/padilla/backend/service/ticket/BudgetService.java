@@ -35,6 +35,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BudgetService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final JdbcTemplate jdbc;
     private final TicketService ticketService;
     private final PropertyRepository propertyRepository;
@@ -116,6 +118,8 @@ public class BudgetService {
         }
         jdbc.update("UPDATE " + schema + ".budgets SET status = ?, decidido_por = ?, decidido_at = now(), motivo = ? WHERE id = ?",
                 aprobar ? "APROBADO" : "RECHAZADO", CurrentUser.id(), motivo, budgetId);
+        auditService.record(aprobar ? "PRESUPUESTO_APROBADO" : "PRESUPUESTO_RECHAZADO", "PRESUPUESTO", budgetId,
+                "$ " + b.get("monto") + (motivo != null ? " (motivo: " + motivo + ")" : ""));
         String n = "#" + t.getTicketNumber();
         notifications.notify((UUID) b.get("provider_id"), aprobar
                 ? Notice.of(NotificationType.PRESUPUESTO_APROBADO, "Presupuesto aprobado " + n,

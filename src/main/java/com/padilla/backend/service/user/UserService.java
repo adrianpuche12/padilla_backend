@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserService {
 
+    private final com.padilla.backend.service.audit.AuditService auditService;
+
     private final UserLifecycleService userLifecycleService;
 
     private final com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
@@ -125,6 +127,7 @@ public class UserService {
         userRepository.save(user);
         // PRO-033: efectos de la baja (reasignacion de actores, etc.)
         userLifecycleService.onDeactivated(user);
+        auditService.record("USUARIO_DESACTIVADO", "USUARIO", user.getId(), user.getRole() + " " + user.getEmail());
         keycloakAdminService.disableUser(user.getEmail());
     }
 
@@ -172,6 +175,7 @@ public class UserService {
             tempPassword = keycloakAdminService.generateAndSetTemporaryPassword(keycloakId);
         }
 
+        auditService.record("USUARIO_CREADO", "USUARIO", saved.getId(), saved.getRole() + " " + saved.getEmail());
         emailService.sendWelcomeEmail(saved.getEmail(), saved.getName(), tempPassword);
 
         return new CreateUserResult(saved, tempPassword);
@@ -188,6 +192,7 @@ public class UserService {
         user.setActive(true);
         userRepository.save(user);
         userLifecycleService.onReactivated(user);
+        auditService.record("USUARIO_REACTIVADO", "USUARIO", user.getId(), user.getRole() + " " + user.getEmail());
         keycloakAdminService.enableUser(user.getEmail());
         return user;
     }
@@ -203,6 +208,7 @@ public class UserService {
         user.setFirstLogin(true);
         user.setPasswordResetExpiresAt(OffsetDateTime.now().plusHours(24));
         userRepository.save(user);
+        auditService.record("PASSWORD_RESETEADA", "USUARIO", user.getId(), user.getEmail());
         emailService.sendPasswordResetEmail(user.getEmail(), user.getName(), tempPassword);
         return tempPassword;
     }
@@ -236,6 +242,7 @@ public class UserService {
         // y el usuario queda intacto en la DB. Orden intencionado.
         // Se usa deleteUserByEmail (no deleteUserById) para manejar correctamente
         // usuarios con UUID desincronizado entre DB y Keycloak.
+        auditService.record("USUARIO_ELIMINADO", "USUARIO", id, user.getRole() + " " + user.getEmail());
         userRepository.deleteById(id);
 
         keycloakAdminService.deleteUserByEmail(user.getEmail());
