@@ -86,4 +86,12 @@ public class Contract {
     protected void onCreate() {
         this.createdAt = OffsetDateTime.now();
     }
+
+    /** PRO-033: el propietario fue dado de baja (el contrato sigue vigente). */
+    @Column(name = "owner_inactive", nullable = false)
+    private boolean ownerInactive = false;
+
+    /** PRO-033: el inquilino fue dado de baja (el contrato sigue vigente). */
+    @Column(name = "tenant_inactive", nullable = false)
+    private boolean tenantInactive = false;
 }

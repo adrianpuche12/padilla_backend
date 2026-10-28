@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ClientService {
 
+    private final com.padilla.backend.service.user.UserLifecycleService userLifecycleService;
+
     private final UserRepository userRepository;
     private final ClientProfileRepository clientProfileRepository;
     private final KeycloakAdminService keycloakAdminService;
@@ -187,6 +189,8 @@ public class ClientService {
 
         user.setActive(false);
         userRepository.save(user);
+        // PRO-033: efectos de la baja segun el rol (tickets, contratos)
+        userLifecycleService.onDeactivated(user);
         keycloakAdminService.disableUser(user.getEmail());
     }
 
@@ -220,6 +224,7 @@ public class ClientService {
 
         user.setActive(true);
         userRepository.save(user);
+        userLifecycleService.onReactivated(user);
         keycloakAdminService.enableUser(user.getEmail());
         return toDTO(user);
     }

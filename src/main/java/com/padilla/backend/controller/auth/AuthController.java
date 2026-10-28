@@ -8,6 +8,7 @@ import com.padilla.backend.dto.auth.RefreshRequest;
 import com.padilla.backend.dto.auth.TokenResponse;
 import com.padilla.backend.entity.User;
 import com.padilla.backend.repository.UserRepository;
+import com.padilla.backend.security.PasswordPolicy;
 import com.padilla.backend.service.auth.KeycloakAdminService;
 import com.padilla.backend.service.auth.KeycloakAuthService;
 import com.padilla.backend.service.email.EmailService;
@@ -40,11 +41,6 @@ public class AuthController {
     private final UserRepository userRepository;
     private final EmailService emailService;
 
-    // Requisitos de seguridad del password
-    private static final int MIN_LENGTH        = 8;
-    private static final Pattern HAS_UPPERCASE = Pattern.compile(".*[A-Z].*");
-    private static final Pattern HAS_NUMBER    = Pattern.compile(".*[0-9].*");
-    private static final Pattern HAS_SYMBOL    = Pattern.compile(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?].*");
 
     /**
      * POST /api/auth/login
@@ -115,7 +111,7 @@ public class AuthController {
             String newPassword = request.getNewPassword();
 
             // Validar requisitos del nuevo password
-            String validationError = validatePasswordStrength(newPassword);
+            String validationError = PasswordPolicy.violation(newPassword).orElse(null);
             if (validationError != null) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "INVALID_PASSWORD", "message", validationError));
@@ -239,17 +235,5 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(Map.of("error", "AUTH_PROVIDER_ERROR",
                         "message", "El servicio de autenticación no está disponible. Intentá de nuevo en unos minutos."));
-    }
-
-    private String validatePasswordStrength(String password) {
-        if (password == null || password.length() < MIN_LENGTH)
-            return "La contraseña debe tener al menos " + MIN_LENGTH + " caracteres";
-        if (!HAS_UPPERCASE.matcher(password).matches())
-            return "La contraseña debe contener al menos 1 letra mayúscula";
-        if (!HAS_NUMBER.matcher(password).matches())
-            return "La contraseña debe contener al menos 1 número";
-        if (!HAS_SYMBOL.matcher(password).matches())
-            return "La contraseña debe contener al menos 1 símbolo (!@#$%^&*)";
-        return null;
     }
 }
