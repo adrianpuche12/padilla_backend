@@ -8,6 +8,10 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
+/**
+ * Mails transaccionales (Resend). PRO-024: marca del producto Propero (antes decia Padilla, que es el
+ * cliente piloto, no el software).
+ */
 public class EmailService {
 
     @Value("${resend.api-key}")
@@ -35,7 +39,7 @@ public class EmailService {
             CreateEmailOptions email = CreateEmailOptions.builder()
                     .from(fromAddress)
                     .to(toEmail)
-                    .subject("Bienvenido a Padilla — Tus credenciales de acceso")
+                    .subject("Bienvenido a Propero — Tus credenciales de acceso")
                     .html(buildWelcomeEmailHtml(toName, toEmail, temporaryPassword))
                     .build();
 
@@ -62,7 +66,7 @@ public class EmailService {
             CreateEmailOptions email = CreateEmailOptions.builder()
                     .from(fromAddress)
                     .to(toEmail)
-                    .subject("Padilla — Nuevo acceso solicitado")
+                    .subject("Propero — Nuevo acceso solicitado")
                     .html(buildResendAccessEmailHtml(toName, toEmail, temporaryPassword))
                     .build();
 
@@ -89,7 +93,7 @@ public class EmailService {
             CreateEmailOptions email = CreateEmailOptions.builder()
                     .from(fromAddress)
                     .to(toEmail)
-                    .subject("Padilla — Restablecimiento de contraseña")
+                    .subject("Propero — Restablecimiento de contraseña")
                     .html(buildPasswordResetEmailHtml(toName, toEmail, temporaryPassword))
                     .build();
 
@@ -136,7 +140,7 @@ public class EmailService {
                             <td style="padding:40px 40px 32px;">
                               <h2 style="color:#1a1a2e;margin:0 0 16px;font-size:20px;">Bienvenido, %s</h2>
                               <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 24px;">
-                                Tu cuenta en la plataforma Padilla fue creada exitosamente.
+                                Tu cuenta en la plataforma Propero fue creada exitosamente.
                                 A continuación encontrás tus credenciales para ingresar por primera vez.
                               </p>
 
@@ -200,7 +204,7 @@ public class EmailService {
                           <tr>
                             <td style="background-color:#f0f4f8;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
                               <p style="color:#aaa;font-size:12px;margin:0;line-height:1.6;">
-                                Este email fue enviado automáticamente por la plataforma Padilla.<br>
+                                Este email fue enviado automáticamente por la plataforma Propero.<br>
                                 Si recibís este email por error, ignoralo.
                               </p>
                             </td>
@@ -302,7 +306,7 @@ public class EmailService {
                           <tr>
                             <td style="background-color:#f0f4f8;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
                               <p style="color:#aaa;font-size:12px;margin:0;line-height:1.6;">
-                                Este email fue enviado automáticamente por la plataforma Padilla.<br>
+                                Este email fue enviado automáticamente por la plataforma Propero.<br>
                                 Si recibís este email por error, ignoralo.
                               </p>
                             </td>
@@ -344,7 +348,7 @@ public class EmailService {
                             <td style="padding:40px 40px 32px;">
                               <h2 style="color:#1a1a2e;margin:0 0 16px;font-size:20px;">Nuevo acceso generado, %s</h2>
                               <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 24px;">
-                                Se generó un nuevo acceso temporal para tu cuenta en la plataforma Padilla.
+                                Se generó un nuevo acceso temporal para tu cuenta en la plataforma Propero.
                               </p>
 
                               <!-- Credentials box -->
@@ -393,7 +397,7 @@ public class EmailService {
                           <tr>
                             <td style="background-color:#f0f4f8;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
                               <p style="color:#aaa;font-size:12px;margin:0;line-height:1.6;">
-                                Este email fue enviado automáticamente por la plataforma Padilla.<br>
+                                Este email fue enviado automáticamente por la plataforma Propero.<br>
                                 Si recibís este email por error, ignoralo.
                               </p>
                             </td>

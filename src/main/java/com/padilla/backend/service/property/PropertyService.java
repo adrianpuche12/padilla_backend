@@ -23,6 +23,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PropertyService {
 
+    private final com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
+
     private final PropertyRepository propertyRepository;
 
     // --- Consultas ---
@@ -70,6 +72,8 @@ public class PropertyService {
 
     @Transactional
     public Property create(Property property) {
+        // PRO-025: limite de propiedades activas del plan
+        agencySettingsService.checkCanAddProperty();
         validateIsAdmin();
         return propertyRepository.save(property);
     }
