@@ -23,6 +23,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PropertyService {
 
+    private final com.padilla.backend.repository.ContractRepository contractRepository;
+
     private final com.padilla.backend.service.settings.AgencySettingsService agencySettingsService;
 
     private final PropertyRepository propertyRepository;
@@ -97,8 +99,13 @@ public class PropertyService {
         validateIsAdmin();
         Property property = propertyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + id));
+        // PRO-043 (C23): "inactiva" (active=false) es distinto de "en mantenimiento" (status). Antes
+        // desactivar pisaba el estado con MAINTENANCE. No se desactiva una propiedad con contrato vigente.
+        if (contractRepository.findByPropertyIdAndStatus(id, com.padilla.backend.enums.ContractStatus.ACTIVE).isPresent()) {
+            throw new com.padilla.backend.exception.ConflictException(
+                    "La propiedad tiene un contrato vigente: rescindilo antes de desactivarla");
+        }
         property.setActive(false);
-        property.setStatus(PropertyStatus.MAINTENANCE);
         propertyRepository.save(property);
     }
 
@@ -108,7 +115,10 @@ public class PropertyService {
         Property property = propertyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Propiedad no encontrada: " + id));
         property.setActive(true);
-        property.setStatus(PropertyStatus.AVAILABLE);
+        // Las desactivadas con la logica anterior quedaron en MAINTENANCE: vuelven a AVAILABLE
+        if (property.getStatus() == PropertyStatus.MAINTENANCE) {
+            property.setStatus(PropertyStatus.AVAILABLE);
+        }
         propertyRepository.save(property);
     }
 

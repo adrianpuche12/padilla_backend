@@ -39,6 +39,7 @@ public class TicketService {
     private final UserRepository userRepository;
     private final PropertyRepository propertyRepository;
     private final ContractRepository contractRepository;
+    private final com.padilla.backend.repository.ClientProfileRepository clientProfileRepository;
 
     // --- Consultas ---
 
@@ -204,6 +205,31 @@ public class TicketService {
             transition(ticket, TicketStatus.EN_PROCESO);
         }
         return ticketRepository.save(ticket);
+    }
+
+    /** PRO-041: proveedores sugeridos segun la categoria del ticket, ordenados por carga de trabajo. */
+    public List<java.util.Map<String, Object>> suggestedProviders(UUID ticketId) {
+        CurrentUser.requireManagement();
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket no encontrado: " + ticketId));
+        var especialidad = ticket.getCategory().specialty();
+        return userRepository.findByRole(Role.PROVIDER).stream()
+                .filter(User::isActive)
+                .map(u -> {
+                    var perfil = clientProfileRepository.findByUserId(u.getId()).orElse(null);
+                    var esp = perfil == null ? null : perfil.getSpecialty();
+                    java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", u.getId());
+                    m.put("name", u.getName());
+                    m.put("specialty", esp);
+                    m.put("openTickets", ticketRepository.countByProviderIdAndStatusIn(u.getId(),
+                            List.of(TicketStatus.ABIERTA, TicketStatus.EN_PROCESO)));
+                    m.put("matches", especialidad == null || especialidad == esp);
+                    return m;
+                })
+                .filter(m -> (Boolean) m.get("matches"))
+                .sorted(java.util.Comparator.comparingLong(m -> (Long) m.get("openTickets")))
+                .toList();
     }
 
     public List<TicketProviderLog> getProviderHistory(UUID ticketId) {

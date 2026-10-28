@@ -118,6 +118,16 @@ public class TicketController {
         return ResponseEntity.ok(toDTO(updated));
     }
 
+    /**
+     * PRO-041: proveedores activos cuya especialidad resuelve la categoria del ticket
+     * (para OTRO, todos los activos). Los que ya tienen menos tickets abiertos van primero.
+     */
+    @GetMapping("/{id}/suggested-providers")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<List<java.util.Map<String, Object>>> suggestedProviders(@PathVariable UUID id) {
+        return ResponseEntity.ok(ticketService.suggestedProviders(id));
+    }
+
     @GetMapping("/{id}/provider-history")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
     public ResponseEntity<List<TicketProviderLogDTO>> getProviderHistory(@PathVariable UUID id) {

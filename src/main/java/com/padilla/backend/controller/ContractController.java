@@ -105,6 +105,15 @@ public class ContractController {
         return ResponseEntity.ok(toDTO(updated));
     }
 
+    /** PRO-043: forma recomendada. DELETE /{id} queda como alias (deprecado) por compatibilidad. */
+    @PatchMapping("/{id}/terminate")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
+    public ResponseEntity<Void> terminateContractPatch(@PathVariable UUID id) {
+        contractService.terminate(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @Deprecated
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'ADMIN')")
     public ResponseEntity<Void> terminateContract(@PathVariable UUID id) {
