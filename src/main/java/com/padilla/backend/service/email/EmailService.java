@@ -4,6 +4,7 @@ import com.resend.Resend;
 import com.resend.services.emails.model.CreateEmailOptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -105,6 +106,63 @@ public class EmailService {
         }
     }
 
+    /**
+     * PRO-060: mail de una notificacion (cambio de estado de ticket, contrato por vencer, etc.).
+     * Asincronico y best-effort: no demora ni corta la operacion que la genero.
+     */
+    @Async
+    public void sendNotificationEmail(String toEmail, String toName, String titulo, String mensaje) {
+        if (!isConfigured()) {
+            log.debug("[EmailService] Resend no configurado: notificacion a {} solo in-app", toEmail);
+            return;
+        }
+        try {
+            Resend resend = new Resend(apiKey);
+            CreateEmailOptions email = CreateEmailOptions.builder()
+                    .from(fromAddress)
+                    .to(toEmail)
+                    .subject("Propero — " + titulo)
+                    .html(buildNotificationHtml(toName, titulo, mensaje))
+                    .build();
+            resend.emails().send(email);
+            log.info("[EmailService] Notificacion '{}' enviada a {}", titulo, toEmail);
+        } catch (Exception e) {
+            log.error("[EmailService] Error al enviar notificacion a {}: {}", toEmail, e.getMessage());
+        }
+    }
+
+    private String buildNotificationHtml(String name, String titulo, String mensaje) {
+        String safeName = escape(name == null ? "" : name);
+        return """
+                <!DOCTYPE html>
+                <html lang="es"><head><meta charset="UTF-8"></head>
+                <body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,sans-serif;">
+                  <table width="100%%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 0;">
+                    <tr><td align="center">
+                      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
+                        <tr><td style="background-color:#1A6B5A;padding:24px 40px;text-align:center;">
+                          <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:1px;">PROPERO</h1>
+                        </td></tr>
+                        <tr><td style="padding:32px 40px;color:#333333;font-size:15px;line-height:1.6;">
+                          <p>Hola %s,</p>
+                          <h2 style="font-size:18px;color:#0f4538;margin:16px 0 8px;">%s</h2>
+                          <p>%s</p>
+                          <p style="margin-top:28px;"><a href="%s" style="background-color:#1A6B5A;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;">Ver en Propero</a></p>
+                        </td></tr>
+                        <tr><td style="padding:16px 40px;background-color:#fafafa;color:#888888;font-size:12px;text-align:center;">
+                          Este email fue enviado automáticamente por la plataforma Propero.
+                        </td></tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </body></html>
+                """.formatted(safeName, escape(titulo), escape(mensaje), frontendUrl);
+    }
+
+    private static String escape(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
     private boolean isConfigured() {
         return apiKey != null && !apiKey.isBlank() && !apiKey.startsWith("re_YOUR");
     }
@@ -129,9 +187,9 @@ public class EmailService {
 
                           <!-- Header -->
                           <tr>
-                            <td style="background-color:#004274;padding:32px 40px;text-align:center;">
-                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PADILLA</h1>
-                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión Inmobiliaria</p>
+                            <td style="background-color:#1A6B5A;padding:32px 40px;text-align:center;">
+                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PROPERO</h1>
+                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión inmobiliaria inteligente</p>
                             </td>
                           </tr>
 
@@ -235,9 +293,9 @@ public class EmailService {
 
                           <!-- Header -->
                           <tr>
-                            <td style="background-color:#004274;padding:32px 40px;text-align:center;">
-                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PADILLA</h1>
-                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión Inmobiliaria</p>
+                            <td style="background-color:#1A6B5A;padding:32px 40px;text-align:center;">
+                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PROPERO</h1>
+                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión inmobiliaria inteligente</p>
                             </td>
                           </tr>
 
@@ -337,9 +395,9 @@ public class EmailService {
 
                           <!-- Header -->
                           <tr>
-                            <td style="background-color:#004274;padding:32px 40px;text-align:center;">
-                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PADILLA</h1>
-                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión Inmobiliaria</p>
+                            <td style="background-color:#1A6B5A;padding:32px 40px;text-align:center;">
+                              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:1px;">PROPERO</h1>
+                              <p style="color:#a8c8e8;margin:6px 0 0;font-size:13px;">Gestión inmobiliaria inteligente</p>
                             </td>
                           </tr>
 
