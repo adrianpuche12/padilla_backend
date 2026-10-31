@@ -1,6 +1,7 @@
 package com.padilla.backend.service.auth;
 
 import com.padilla.backend.enums.Role;
+import com.padilla.backend.exception.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -9,6 +10,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.util.List;
@@ -42,7 +44,19 @@ public class KeycloakAdminService {
     public String createUser(String name, String email, Role role) {
         String token = getAdminToken();
         String userId = createKeycloakUser(token, name, email);
-        assignRole(token, userId, role);
+        try {
+            assignRole(token, userId, role);
+        } catch (RuntimeException e) {
+            // PRO-110: sin esto el usuario quedaba creado sin rol (huerfano) y el reintento
+            // respondia "email ya registrado".
+            deleteQuietly(token, userId);
+            if (e instanceof HttpClientErrorException.NotFound) {
+                log.error("Keycloak no tiene el client role {} en {}: hay que crearlo", role.name(), kcClientId);
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "El sistema de acceso no tiene configurado el rol " + role.name() + ". Avisá a soporte.", e);
+            }
+            throw e;
+        }
         log.info("Usuario creado en Keycloak: {} con rol {}", email, role);
         return userId;
     }
@@ -171,6 +185,36 @@ public class KeycloakAdminService {
             return location != null ? location.substring(location.lastIndexOf('/') + 1) : null;
         } catch (HttpClientErrorException.Conflict e) {
             throw new IllegalStateException("El email ya está registrado en el sistema: " + email);
+        } catch (HttpClientErrorException.BadRequest e) {
+            // PRO-110: Keycloak valida nombre y email (user profile); antes esto salia como 500.
+            throw new BadRequestException(badRequestMessage(e.getResponseBodyAsString()));
+        }
+    }
+
+    static String badRequestMessage(String keycloakBody) {
+        String b = keycloakBody == null ? "" : keycloakBody;
+        if (b.contains("error-person-name-invalid-character")) {
+            return "El nombre tiene caracteres no permitidos: no uses símbolos como ( ) < > & $ % ! # ? ; * / = [ ] { }";
+        }
+        if (b.contains("error-invalid-email")) {
+            return "El email no es válido";
+        }
+        if (b.contains("error-invalid-length")) {
+            return "El nombre o el email son demasiado largos";
+        }
+        return "El sistema de acceso rechazó los datos del usuario";
+    }
+
+    private void deleteQuietly(String token, String userId) {
+        if (userId == null) return;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        try {
+            restTemplate.exchange(serverUrl + "/admin/realms/" + realm + "/users/" + userId,
+                    HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+            log.info("Usuario {} eliminado de Keycloak porque no se pudo completar el alta", userId);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo eliminar de Keycloak el usuario incompleto {}", userId, ex);
         }
     }
 
