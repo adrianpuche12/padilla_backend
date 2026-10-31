@@ -2,7 +2,7 @@ package com.padilla.backend.controller;
 
 import com.padilla.backend.service.storage.AttachmentService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -57,15 +57,16 @@ public class AttachmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(attachments.upload("TICKET", ticketId, file, descripcion, null));
     }
 
+    /** PRO-120: con Range responde 206 por partes (la app reproduce videos sin bajarlos enteros). */
     @GetMapping("/api/attachments/{id}/download")
-    public ResponseEntity<InputStreamResource> download(@PathVariable UUID id) {
+    public ResponseEntity<Resource> download(@PathVariable UUID id) {
         AttachmentService.Download d = attachments.download(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(d.contentType()))
-                .contentLength(d.size())
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.inline().filename(d.nombre(), StandardCharsets.UTF_8).build().toString())
-                .body(new InputStreamResource(d.content()));
+                .body(d.resource());
     }
 
     @DeleteMapping("/api/attachments/{id}")

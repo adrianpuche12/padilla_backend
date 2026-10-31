@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -85,6 +86,42 @@ class AttachmentIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(multipart("/api/attachments").file(foto("x.jpg"))
                         .param("entityType", "PROVEEDOR").param("entityId", data.user("PROVIDER").toString()).with(as(provider, "PROVIDER")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void videosDeLaAppMobileConLimitePropioYDescargaPorPartes() throws Exception {
+        // PRO-120: el inquilino graba un video del problema; la app lo reproduce pidiendo partes (Range)
+        UUID owner = data.user("OWNER");
+        UUID tenant = data.user("TENANT");
+        UUID ticket = data.ticket(data.property(owner, tenant), tenant, "ABIERTA");
+        byte[] video = new byte[3 * 1024 * 1024];
+        for (int i = 0; i < video.length; i++) video[i] = (byte) (i % 251);
+
+        String r = mvc.perform(multipart("/api/tickets/" + ticket + "/attachments")
+                        .file(new MockMultipartFile("file", "perdida.mp4", "video/mp4", video)).with(as(tenant, "TENANT")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.contentType").value("video/mp4"))
+                .andReturn().getResponse().getContentAsString();
+        String id = r.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+
+        mvc.perform(get("/api/attachments/" + id + "/download").header("Range", "bytes=100-199").with(as(owner, "OWNER")))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Content-Range", "bytes 100-199/" + video.length))
+                .andExpect(content().bytes(java.util.Arrays.copyOfRange(video, 100, 200)));
+        mvc.perform(get("/api/attachments/" + id + "/download").with(as(owner, "OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(content().bytes(video));
+
+        // un video de mas de 50 MB se rechaza con mensaje claro; una foto sigue limitada a 10 MB
+        mvc.perform(multipart("/api/tickets/" + ticket + "/attachments")
+                        .file(new MockMultipartFile("file", "largo.mov", "video/quicktime", new byte[50 * 1024 * 1024 + 1])).with(as(tenant, "TENANT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El video supera los 50 MB"));
+        mvc.perform(multipart("/api/tickets/" + ticket + "/attachments")
+                        .file(new MockMultipartFile("file", "foto.jpg", "image/jpeg", new byte[10 * 1024 * 1024 + 1])).with(as(tenant, "TENANT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El archivo supera los 10 MB"));
     }
 
     @Test

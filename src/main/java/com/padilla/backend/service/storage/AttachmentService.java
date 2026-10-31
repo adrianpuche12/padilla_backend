@@ -41,6 +41,9 @@ public class AttachmentService {
     public static final Set<String> ENTITY_TYPES = Set.of("TICKET", "CONTRATO", "PROPIEDAD", "CLIENTE", "PROVEEDOR", "RESERVA");
     public static final Set<String> ALLOWED_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf");
     public static final long MAX_BYTES = 10L * 1024 * 1024;
+    /** PRO-120 (decision D14): videos de la app mobile, hasta 60 s grabados en el celular. */
+    public static final Set<String> VIDEO_TYPES = Set.of("video/mp4", "video/quicktime", "video/3gpp", "video/webm");
+    public static final long MAX_VIDEO_BYTES = 50L * 1024 * 1024;
 
     private final StorageService storage;
     private final JdbcTemplate jdbc;
@@ -53,7 +56,7 @@ public class AttachmentService {
     @Value("${app.db.schema}")
     private String schema;
 
-    public record Download(String nombre, String contentType, long size, InputStream content) {}
+    public record Download(String nombre, String contentType, long size, StoredResource resource) {}
 
     private static final String COLS = "id, entity_type AS \"entityType\", entity_id AS \"entityId\", nombre, "
             + "content_type AS \"contentType\", size_bytes AS \"sizeBytes\", descripcion, vence, "
@@ -66,12 +69,13 @@ public class AttachmentService {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("El archivo esta vacio");
         }
-        if (file.getSize() > MAX_BYTES) {
-            throw new BadRequestException("El archivo supera los 10 MB");
-        }
         String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
-        if (!ALLOWED_TYPES.contains(contentType)) {
-            throw new BadRequestException("Tipo de archivo no permitido (" + contentType + "). Se aceptan imagenes y PDF.");
+        boolean video = VIDEO_TYPES.contains(contentType);
+        if (!video && !ALLOWED_TYPES.contains(contentType)) {
+            throw new BadRequestException("Tipo de archivo no permitido (" + contentType + "). Se aceptan imagenes, videos y PDF.");
+        }
+        if (file.getSize() > (video ? MAX_VIDEO_BYTES : MAX_BYTES)) {
+            throw new BadRequestException(video ? "El video supera los 50 MB" : "El archivo supera los 10 MB");
         }
         UUID id = UUID.randomUUID();
         String key = AgencyContext.require() + "/" + type.toLowerCase(Locale.ROOT) + "/" + entityId + "/" + id;
@@ -99,8 +103,10 @@ public class AttachmentService {
     public Download download(UUID id) {
         Map<String, Object> a = find(id);
         requireCanView((String) a.get("entity_type"), (UUID) a.get("entity_id"));
-        return new Download((String) a.get("nombre"), (String) a.get("content_type"), ((Number) a.get("size_bytes")).longValue(),
-                storage.load((String) a.get("storage_key")));
+        long size = ((Number) a.get("size_bytes")).longValue();
+        String nombre = (String) a.get("nombre");
+        return new Download(nombre, (String) a.get("content_type"), size,
+                new StoredResource(storage, (String) a.get("storage_key"), nombre, size));
     }
 
     @Transactional
